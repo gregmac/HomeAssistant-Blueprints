@@ -1,0 +1,99 @@
+blueprint:
+  name: "Door Direction Trigger"
+  domain: automation
+
+  input:
+    door_entity:
+      name: Door Sensor
+      description: Door to trigger actions
+      selector:
+        entity: 
+          domain: binary_sensor
+          device_class: door
+
+    motion_entity:
+      name: Motion Sensor
+      description: Motion sensor mounted near door, used to determine a person's direction
+      selector:
+        entity: 
+          domain: binary_sensor
+          device_class: motion
+
+    timeout:
+      name: Timeout
+      description: >
+        How long from when motion is detected before door must open for it to be considered
+        as "motion before door".
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 300
+          unit_of_measurement: seconds
+
+    persist_datetime:
+      name: Persistance 
+      description: >
+        Input date/time used for persistent storage.
+        
+
+        This must be manually created as a Date/Time helper, and can't be used for
+        any other purposes.
+      selector:
+        entity: 
+          domain: input_datetime
+
+    motion_first:
+      name: Door opened after motion sensor
+      description: Action to run when the door is opened after the motion sensor is triggered
+      default: []
+      selector:
+        action: {}
+
+    motion_after:
+      name: Door opened before or without motion sensor
+      description: Action to run when the door is opened before the motion sensor.
+      default: []
+      selector:
+        action: {}
+
+mode: single
+max_exceeded: silent
+
+variables:
+  motion_entity: !input motion_entity
+  door_entity: !input door_entity
+  persist_datetime: !input persist_datetime
+  timeout: !input timeout
+
+trigger:
+  - platform: state
+    entity_id: !input motion_entity
+
+  - platform: state
+    entity_id: !input door_entity
+
+action:
+  - variables:
+      last_motion: "{{ states(persist_datetime) | as_timestamp }}"
+
+  - choose:
+      - alias: Motion triggered
+        conditions: |
+          {{ trigger.entity_id == motion_entity and trigger.to_state.state == 'on' }}
+        sequence:
+          # persist date/time
+          - service: input_datetime.set_datetime
+            entity_id: !input persist_datetime
+            data:
+              datetime: "{{ now() | as_local }}"
+
+      - alias: Door opened after motion
+        conditions: |
+          {{ trigger.entity_id == door_entity and trigger.to_state.state == 'on'
+          and now().timestamp() - last_motion < timeout }}
+        sequence: !input motion_first
+
+      - alias: Door opened, no motion
+        conditions: "{{ trigger.entity_id == door_entity and trigger.to_state.state == 'on' }}"
+        sequence: !input motion_after
