@@ -31,18 +31,6 @@ blueprint:
           max: 300
           unit_of_measurement: seconds
 
-    persist_datetime:
-      name: Persistance 
-      description: >
-        Input date/time used for persistent storage.
-        
-
-        This must be manually created as a Date/Time helper, and can't be used for
-        any other purposes.
-      selector:
-        entity: 
-          domain: input_datetime
-
     motion_first:
       name: Door opened after motion sensor
       description: Action to run when the door is opened after the motion sensor is triggered
@@ -63,37 +51,34 @@ max_exceeded: silent
 variables:
   motion_entity: !input motion_entity
   door_entity: !input door_entity
-  persist_datetime: !input persist_datetime
   timeout: !input timeout
 
 trigger:
   - platform: state
     entity_id: !input motion_entity
+    to: 'on'
 
   - platform: state
     entity_id: !input door_entity
+    to: 'on'
 
 action:
-  - variables:
-      last_motion: "{{ states(persist_datetime) | as_timestamp }}"
-
   - choose:
       - alias: Motion triggered
-        conditions: |
-          {{ trigger.entity_id == motion_entity and trigger.to_state.state == 'on' }}
+        conditions: "{{ trigger.entity_id == motion_entity }}"
         sequence:
-          # persist date/time
-          - service: input_datetime.set_datetime
-            entity_id: !input persist_datetime
-            data:
-              datetime: "{{ now() | as_local }}"
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input door_entity
+                to: 'on'
+            timeout: !input timeout
+            continue_on_timeout: false  # STOP all further execution on timeout (including not waiting for cooldown)
 
-      - alias: Door opened after motion
-        conditions: |
-          {{ trigger.entity_id == door_entity and trigger.to_state.state == 'on'
-          and now().timestamp() - last_motion < timeout }}
-        sequence: !input motion_first
+          - if: 
+              condition: template
+              value_template: "{{ true }}"  # TODO - must be a better way?
+            then: !input motion_first
 
       - alias: Door opened, no motion
-        conditions: "{{ trigger.entity_id == door_entity and trigger.to_state.state == 'on' }}"
+        conditions: "{{ trigger.entity_id == door_entity }}"
         sequence: !input motion_after
