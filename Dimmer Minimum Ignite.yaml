@@ -57,57 +57,46 @@ max_exceeded: silent
 
 variables:
   light: !input light
-  min_on_brightness: !input min_on_brightness
+  min_on_brightness_raw: !input min_on_brightness
+  min_on_brightness: "{{ min_on_brightness_raw * 2.55 }}"
   min_on_time: !input min_on_time
-  min_brightness: !input min_brightness
+  min_brightness_raw: !input min_brightness
+  min_brightness: "{{ min_brightness_raw * 2.55 }}"
 
 trigger:
   - platform: state
     entity_id: !input light
 
 action:
+  - condition: |
+      {{
+        trigger.to_state.state == 'on'
+        and (
+          trigger.from_state.state == 'off'
+          and trigger.to_state.attributes.brightness < min_on_brightness
+        )
+        or
+        (
+          trigger.to_state.attributes.brightness < min_brightness
+        )
+      }}
+
+  - alias: Increase to minimum ignite brightness
+    service: light.turn_on
+    target: { entity_id: !input light }
+    data: { brightness_pct: !input min_on_brightness }
+
+  - if:
+      - condition: template
+        value_template: "{{ min_on_time|int > 0 }}"
+    then:
+      - delay: { milliseconds: !input min_on_time }
+
+  # enforce min_brightness
   - variables:
-      # enforce min_brightness
-      target_brightness: |
-        {%- set new_state = trigger.to_state.attributes.brightness -%}
-        {%- set min_brightness_val = min_brightness * 2.55 -%}
-        {%- if min_brightness_val > 0 and new_state > 0 and new_state < min_brightness_val -%}
-          {{ min_brightness_val }}
-        {%- else -%}
-          {{ new_state }}
-        {%- endif -%}
+      target_brightness: "{{ [ trigger.to_state.attributes.brightness, min_brightness ]  | max }}"
 
-  - choose:
-      - conditions: |
-          {{
-                trigger.from_state.state == 'off'
-            and trigger.to_state.state == 'on'
-            and trigger.to_state.attributes.brightness < min_on_brightness
-          }}
-        sequence:
-          - alias: Increase to minimum ignite brightness
-            service: light.turn_on
-            target: { entity_id: !input light }
-            data: { brightness_pct: !input min_on_brightness }
-
-          - if:
-              - condition: template
-                value_template: "{{ min_on_time|int > 0 }}"
-            then:
-              - delay: { milliseconds: !input min_on_time }
-
-          - alias: Set to target brightness
-            service: light.turn_on
-            target: { entity_id: !input light }
-            data: { brightness: "{{ target_brightness }}" }
-
-      - conditions: |
-          {{
-            trigger.to_state.state == 'on'
-            and trigger.to_state.attributes.brightness < target_brightness
-          }}
-        sequence:
-          - alias: Enforce min_brightness
-            service: light.turn_on
-            target: { entity_id: !input light }
-            data: { brightness: "{{ target_brightness }}" }
+  - alias: Set to target brightness
+    service: light.turn_on
+    target: { entity_id: !input light }
+    data: { brightness: "{{ target_brightness }}" }
