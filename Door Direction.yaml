@@ -31,6 +31,17 @@ blueprint:
           max: 300
           unit_of_measurement: seconds
 
+    cooldown:
+      name: Cooldown
+      description: >
+        How long from when an action is run before another action can be triggered.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 300
+          unit_of_measurement: seconds
+
     motion_first:
       name: Door opened after motion sensor
       description: Action to run when the door is opened after the motion sensor is triggered
@@ -52,6 +63,7 @@ variables:
   motion_entity: !input motion_entity
   door_entity: !input door_entity
   timeout: !input timeout
+  cooldown: !input cooldown
 
 trigger:
   - platform: state
@@ -82,3 +94,6 @@ action:
       - alias: Door opened, no motion
         conditions: "{{ trigger.entity_id == door_entity }}"
         sequence: !input motion_after
+
+  - delay: !input cooldown
+
