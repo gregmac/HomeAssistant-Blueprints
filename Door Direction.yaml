@@ -84,16 +84,28 @@ action:
                 entity_id: !input door_entity
                 to: 'on'
             timeout: !input timeout
-            continue_on_timeout: false  # STOP all further execution on timeout (including not waiting for cooldown)
+            continue_on_timeout: false # STOP all further execution on timeout (including not waiting for cooldown)
 
-          - if: 
-              condition: template
-              value_template: "{{ true }}"  # TODO - must be a better way?
+          - service: logbook.log
+            data:
+              name: "{{ this.attributes.friendly_name }}"
+              message: "Door opened after motion triggered"
+              entity_id: !input door_entity
+
+          - if: { condition: template, value_template: "{{ true }}" }  # TODO - must be a better way?
             then: !input motion_first
 
       - alias: Door opened, no motion
         conditions: "{{ trigger.entity_id == door_entity }}"
-        sequence: !input motion_after
+        sequence:
+          - service: logbook.log
+            data:
+              name: "{{ this.attributes.friendly_name }}"
+              message: "Door opened before/without motion triggered"
+              entity_id: !input door_entity
+
+          - if: { condition: template, value_template: "{{ true }}" }  # TODO - must be a better way?
+            then: !input motion_after
 
   - delay: !input cooldown
 
