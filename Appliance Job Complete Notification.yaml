@@ -96,6 +96,23 @@ blueprint:
         entity:
           domain: schedule
 
+    custom_actions: 
+      name: "Custom Actions"
+      description: >
+        Optional. Any other action(s) to perform when the job is complete.
+
+
+        Variables available for use in messages:
+        
+        * `{{appliance_device_id}}` - The device id that the **Appliance State** sensor belongs to
+
+        * `{{appliance_name}}` - The name of the device (if available)
+
+        * `{{notification_message}}` - Either "The {{appliance_name}} has finished" or the name of this automation.
+      default: []
+      selector:
+        action:
+
     deactivate_on_complete:
       name: Automatically deactivation next notification
       description: |
@@ -141,6 +158,7 @@ variables:
   notify1_schedule: !input notify1_schedule
   notify2_type: !input notify2_type
   notify2_schedule: !input notify2_schedule
+  custom_actions: !input custom_actions
 
 action:
   - variables:
@@ -153,11 +171,11 @@ action:
         conditions: "{{ trigger.entity_id == job_state }}"
         sequence:
           - variables:
-              job_device_id: "{{ device_id(job_state) }}"
-              job_device_name: "{{ device_attr(job_device_id, 'name') }}"
+              appliance_device_id: "{{ device_id(job_state) }}"
+              appliance_name: "{{ device_attr(appliance_device_id, 'name') if appliance_device_id }}"
               notification_message: |
-                {%- if job_device_name -%}
-                  The {{ job_device_name }} has finished
+                {%- if appliance_name -%}
+                  The {{ appliance_name }} has finished
                 {%- else -%}
                   {{ this.attributes.friendly_name }}
                 {%- endif -%}
@@ -168,12 +186,8 @@ action:
               message: "{{ notification_message }}"
               entity_id: !input job_state
 
-          # - service: notify.google_assistant_sdk
-          #   data:
-          #     message: "{{ notification_message }}"
-          #     target: !input notify_areas
-
-          - if:
+          - alias: Notifcation 1
+            if:
               - condition: template
                 # verify valid action, plus schedule is not off
                 # (if unuset, schedule result is 'undefined' so condition is true)
@@ -188,7 +202,8 @@ action:
                   message: "{{ notification_message }}"
                   target: !input notify1_targets
 
-          - if:
+          - alias: Notifcation 2
+            if:
               - condition: template
                 # verify valid action, plus schedule is not off
                 # (if unuset, schedule result is 'undefined' so condition is true)
@@ -203,12 +218,11 @@ action:
                   message: "{{ notification_message }}"
                   target: !input notify2_targets
 
-          - if:
+          - alias: Custom actions
+            if:
               - condition: template
-                value_template: "{{ deactivate_on_complete }}"
-            then:
-              - service: input_boolean.turn_off
-                target: { entity_id: !input activation_switch }
+                value_template: "{{ custom_actions != [] }}"
+            then: !input custom_actions
 
       - alias: "Deactivate delay"
         conditions: |
