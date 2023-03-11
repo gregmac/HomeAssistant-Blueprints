@@ -53,6 +53,15 @@ blueprint:
         area:
           multiple: true
 
+    notify1_schedule:
+      name: "Notification 1: Schedule"
+      description: |
+        Optional. If set, Notification 1 is only sent when this is active.
+      default: []
+      selector:
+        entity:
+          domain: schedule
+
     notify2_type: 
       name: "Notification 2: Type"
       description: >
@@ -78,6 +87,15 @@ blueprint:
       default: []
       selector:
         text:
+
+    notify2_schedule:
+      name: "Notification 2: Schedule"
+      description: |
+        Optional. If set, Notification 2 is only sent when this is active.
+      default: []
+      selector:
+        entity:
+          domain: schedule
 
     deactivate_on_complete:
       name: Automatically deactivation next notification
@@ -121,7 +139,9 @@ variables:
   job_state: !input job_state
   deactivate_on_complete: !input deactivate_on_complete
   notify1_type: !input notify1_type
+  notify1_schedule: !input notify1_schedule
   notify2_type: !input notify2_type
+  notify2_schedule: !input notify2_schedule
 
 action:
   - variables:
@@ -156,7 +176,13 @@ action:
 
           - if:
               - condition: template
-                value_template: "{{ notify1_type and notify1_type != 'none.none'  }}"
+                # verify valid action, plus schedule is not off
+                # (if unuset, schedule result is 'undefined' so condition is true)
+                value_template: |
+                  {{
+                    (notify1_type and notify1_type != 'none.none')
+                    and (states(notify1_schedule) != 'off')
+                  }}
             then:
               - service: !input notify1_type
                 data:
@@ -165,7 +191,13 @@ action:
 
           - if:
               - condition: template
-                value_template: "{{ notify2_type and notify2_type != 'none.none' }}"
+                # verify valid action, plus schedule is not off
+                # (if unuset, schedule result is 'undefined' so condition is true)
+                value_template: |
+                  {{
+                    (notify2_type and notify2_type != 'none.none')
+                    and (states(notify2_schedule) != 'off')
+                  }}
             then:
               - service: !input notify2_type
                 data:
