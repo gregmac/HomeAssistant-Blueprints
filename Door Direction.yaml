@@ -1,5 +1,14 @@
 blueprint:
   name: "Door Direction Trigger"
+  description: >-
+    Connects to a door sensor and a motion sensor, allowing setting actions
+    for when the door is opened after the motion is tripped or not. This is
+    especially useful for automatically triggering lights based on someone
+    exiting or entering.
+
+
+    The delay time between motion event and door opening is configurable.
+
   domain: automation
 
   input:
@@ -56,7 +65,7 @@ blueprint:
       selector:
         action: {}
 
-mode: single
+mode: single # important to not overlap triggers
 max_exceeded: silent
 
 variables:

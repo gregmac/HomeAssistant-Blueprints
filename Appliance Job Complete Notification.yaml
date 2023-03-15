@@ -2,9 +2,13 @@ blueprint:
   name: "Appliance Job Complete Notification"
   author: gregmac
   domain: automation
-  description: >
+  description: >-
     Send notification of the job completion of a Washer/Dryer/etc to
-    a couple of notification services.
+    one or more notification services.
+
+
+    Automatically configures a message to send to common targets,
+    but also can be configured for custom actions.
 
   input:
     job_state:
