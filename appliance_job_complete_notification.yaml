@@ -9,6 +9,7 @@ blueprint:
 
     Automatically configures a message to send to common targets,
     but also can be configured for custom actions.
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/appliance_job_complete_notification.yaml
 
   input:
     job_state:

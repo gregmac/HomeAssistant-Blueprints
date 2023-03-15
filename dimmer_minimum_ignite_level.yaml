@@ -15,6 +15,7 @@ blueprint:
 
     This happens based on state change, so works with lights no matter how they are controlled, including
     other automations and scenes.
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/dimmer_minimum_ignite_level.yaml
 
   input:
     light:

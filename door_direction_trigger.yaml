@@ -10,6 +10,7 @@ blueprint:
     The delay time between motion event and door opening is configurable.
 
   domain: automation
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/door_direction_trigger.yaml
 
   input:
     door_entity:
