@@ -35,9 +35,9 @@ blueprint:
         This will require some experimentation to get right: Setting it too low will mean the light
         sometimes won't turn on, but setting it higher than necessary will result in a brighter
         flash when first turned on below the minimum level.
-      default: 20
+      default: 50
       selector:
-        number: { min: 0, max: 100, unit_of_measurement: '%' }
+        number: { min: 0, max: 255 }
 
     min_ignite_time:
       name: Minimum time needed to turn light on
@@ -56,7 +56,7 @@ blueprint:
         go to minimum ignite then be set to this value.
       default: 0
       selector:
-        number: { min: 0, max: 100, unit_of_measurement: '%' }
+        number: { min: 0, max: 255 }
 
 mode: single # single needed to prevent this script from triggering itself
 max_exceeded: silent
@@ -87,7 +87,7 @@ action:
   - alias: Increase to minimum ignite brightness
     service: light.turn_on
     target: { entity_id: !input light }
-    data: { brightness_pct: !input min_ignite_brightness }
+    data: { brightness: !input min_ignite_brightness }
 
   - if:
       - condition: template
