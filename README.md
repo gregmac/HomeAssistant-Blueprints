@@ -4,10 +4,14 @@ This is a collection of largely unrelated blueprints I use in HomeAssistant.
 
 ## Appliance Job Complete Notificaition
 
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgregmac%2FHomeAssistant-Blueprints%2Fblob%2Fmain%2Fappliance_job_complete_notification.yaml)
+
 Send notification of the job completion of a Washer/Dryer/etc to
 one or more notification services.
 
 ## Dimmer Minimum Ignite
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgregmac%2FHomeAssistant-Blueprints%2Fblob%2Fmain%2Fdimmer_minimum_ignite_level.yaml)
 
 Ensures that when a light is turned on to a brightness that is too low to make it actually light up,
 that it is temporarily set to a higher value (to get it to turn on) before being lowered back down
@@ -20,6 +24,8 @@ will set it to 20% (configurable) for about a second, before dimming it back dow
 will stay light at a low level.
 
 ## Door Direction
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgregmac%2FHomeAssistant-Blueprints%2Fblob%2Fmain%2Fdoor_direction_trigger.yaml)
 
 Connects to a door sensor and a motion sensor, allowing setting actions
 for when the door is opened after the motion is tripped or not. This is
