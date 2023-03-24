@@ -13,6 +13,8 @@ Ensures that when a light is turned on to a brightness that is too low to make i
 that it is temporarily set to a higher value (to get it to turn on) before being lowered back down
 to the desired brightness.
 
+![image](https://user-images.githubusercontent.com/1216375/226121740-e9fbb6fd-39ef-46cd-9392-138ca55a3d71.png)
+
 For example, if a LED bulb is first turned on to 3%, it often won't light up at all. This automation
 will set it to 20% (configurable) for about a second, before dimming it back down to 3%, where it
 will stay light at a low level.

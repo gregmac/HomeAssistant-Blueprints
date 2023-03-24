@@ -24,45 +24,47 @@ blueprint:
       selector:
         entity:
           domain: light
+      # note: multiple not supported due to requiring 'single' mode
 
-    min_on_brightness:
+    min_ignite_brightness:
       name: Minimum level needed to turn light on
-      description: |
-        The lowest level that reliably turns the light on. This will require some experimentation to get right.
-        Setting it too low will mean the light sometimes won't turn on, but setting it higher than
-        necessary will result in a brighter flash when it first turns on.
-      default: 20
-      selector:
-        number: { min: 0, max: 100, unit_of_measurement: '%' }
+      description: >-
+        The lowest level that reliably turns the light on.
 
-    min_on_time:
+
+        This will require some experimentation to get right: Setting it too low will mean the light
+        sometimes won't turn on, but setting it higher than necessary will result in a brighter
+        flash when first turned on below the minimum level.
+      default: 50
+      selector:
+        number: { min: 0, max: 255 }
+
+    min_ignite_time:
       name: Minimum time needed to turn light on
-      description: |
-        Extra time to delay before dimming the light back to the desired level. Note that there is some natural delay
-        in the automation execution, so this may not be necessary at all.
+      description: >-
+        Extra time to delay before dimming the light back to the desired level. This is in addition to
+        the natural delay from the speed HomeAssistant executes the automation steps.
       default: 10
       selector:
         number: { min: 0, max: 1000, step: 5, unit_of_measurement: 'milliseconds' }
 
     min_brightness:
       name: Minimum level allowed
-      description: |
-        The absolute lowest level the light is allowed to be set to.
-        If set to a lower value, it will be raised to this.
+      description: >-
+        The absolute lowest level the light is ever allowed to be set to.
+        If set to a lower value at any point, it will trigger the light to
+        go to minimum ignite then be set to this value.
       default: 0
       selector:
-        number: { min: 0, max: 100, unit_of_measurement: '%' }
+        number: { min: 0, max: 255 }
 
-mode: single
+mode: single # single needed to prevent this script from triggering itself
 max_exceeded: silent
 
 variables:
-  light: !input light
-  min_on_brightness_raw: !input min_on_brightness
-  min_on_brightness: "{{ min_on_brightness_raw * 2.55 }}"
-  min_on_time: !input min_on_time
-  min_brightness_raw: !input min_brightness
-  min_brightness: "{{ min_brightness_raw * 2.55 }}"
+  min_ignite_brightness: !input min_ignite_brightness
+  min_ignite_time: !input min_ignite_time
+  min_brightness: !input min_brightness
 
 trigger:
   - platform: state
@@ -74,7 +76,7 @@ action:
         trigger.to_state.state == 'on'
         and (
           trigger.from_state.state == 'off'
-          and trigger.to_state.attributes.brightness < min_on_brightness
+          and trigger.to_state.attributes.brightness < min_ignite_brightness
         )
         or
         (
@@ -85,13 +87,13 @@ action:
   - alias: Increase to minimum ignite brightness
     service: light.turn_on
     target: { entity_id: !input light }
-    data: { brightness_pct: !input min_on_brightness }
+    data: { brightness: !input min_ignite_brightness }
 
   - if:
       - condition: template
-        value_template: "{{ min_on_time|int > 0 }}"
+        value_template: "{{ min_ignite_time|int > 0 }}"
     then:
-      - delay: { milliseconds: !input min_on_time }
+      - delay: { milliseconds: !input min_ignite_time }
 
   # enforce min_brightness
   - variables:
