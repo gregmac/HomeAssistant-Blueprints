@@ -1,0 +1,247 @@
+blueprint:
+  name: "Laundry Notification"
+  author: gregmac
+  domain: automation
+  description: >-
+    Send notification of the job completion of a Washer and Dryer to
+    one or more notification services.
+
+
+    Automatically configures a message to send to common targets,
+    but also can be configured for custom actions.
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/washer_dryer_notification.yaml
+
+  input:
+    washer_job_state:
+      name: Washer Job State
+      selector:
+        entity:
+          domain: sensor
+
+    washer_completion_time:
+      name: Washer Completion Time
+      selector:
+        entity:
+          domain: sensor
+
+    dryer_job_state:
+      name: Dryer Job State
+      description: |
+        Dryer
+      selector:
+        entity:
+          domain: sensor
+
+    dryer_completion_time:
+      name: Dryer Completion Time
+      selector:
+        entity:
+          domain: sensor
+
+
+    notify1_type: 
+      name: "Notification: Announcement"
+      description: >
+        Use voice notification
+      default: none.none
+      selector:
+        select:
+          options:
+            - value: none.none # passes template valdiation, but doesn't get executed
+              label: "Disabled"
+            - value: notify.google_assistant_sdk
+              label: "Send a notification with notify.google_assistant_sdk"
+          custom_value: true
+
+    notify1_targets:
+      name: "Notification 1: Targets(s) to notify"
+      description: |
+        Optional. Usually meeans "area" to notify, blank usually means "everywhere".
+      default: []
+      selector:
+        area:
+          multiple: true
+
+    notify1_schedule:
+      name: "Notification 1: Schedule"
+      description: |
+        Optional. If set, Notification 1 is only sent when this is active.
+      default: []
+      selector:
+        entity:
+          domain: schedule
+
+    notify2_type: 
+      name: "Notification 2"
+      description: >
+        Use notification service
+      default: notify.notify
+      selector:
+        select:
+          options:
+            - value: none.none
+              label: "Disabled"
+            - value: notify.notify
+              label: "Send a notification with notify.notify"
+          custom_value: true
+
+    notify2_schedule:
+      name: "Notification 2: Schedule"
+      description: |
+        Optional. If set, Notification 2 is only sent when this is active.
+      default: []
+      selector:
+        entity:
+          domain: schedule
+
+    custom_actions: 
+      name: "Custom Actions"
+      description: >
+        Optional. Any other action(s) or notifications to perform when the job is complete.
+
+
+        Variables available for use in messages:
+        
+        * `{{appliance_device_id}}` - The device id that the **Appliance State** sensor belongs to
+
+        * `{{appliance_name}}` - The name of the device (if available)
+
+        * `{{notification_message}}` - Either "The {{appliance_name}} has finished" or the name of this automation.
+      default: []
+      selector:
+        action:
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id: !input washer_job_state
+    to:
+      - finish
+      - finished
+      - complete
+      - completed
+      - done
+
+  - platform: state
+    entity_id: !input dryer_job_state
+    to:
+      - finish
+      - finished
+      - complete
+      - completed
+      - done
+
+variables:
+  washer_job_state: !input washer_job_state
+  washer_completion_time: !input washer_completion_time
+  dryer_job_state: !input dryer_job_state
+  dryer_completion_time: !input dryer_completion_time
+
+  notify1_type: !input notify1_type
+  notify1_schedule: !input notify1_schedule
+  notify2_type: !input notify2_type
+  notify2_schedule: !input notify2_schedule
+  custom_actions: !input custom_actions
+
+action:
+  - variables:
+      washer_device_id: "{{ device_id(washer_job_state) if washer_job_state }}"
+      washer_name: "{{ device_attr(washer_device_id, 'name') if washer_device_id else 'Washer' }}"
+      dryer_device_id: "{{ device_id(dryer_job_state) if dryer_job_state }}"
+      dryer_name: "{{ device_attr(dryer_device_id, 'name') if dryer_device_id else 'Dryer' }}"
+
+      # completion message, if triggered by washer or dryer
+      # if manually triggered, this is blank
+      complete_message: |
+        {% if trigger.entity_id == washer_job_state %}
+          The {{ washer_name }} has finished.
+        {% elif trigger.entity_id == dryer_job_state %}
+          The {{ dryer_name }} has finished.
+        {%- endif -%}
+
+      # create messages like "The dryer will be finished in 1 hour 24 minutes."
+      washer_time_left_message: |
+        {%- if washer_completion_time -%}
+          {%- set seconds = as_timestamp(states(washer_completion_time)) - as_timestamp(now()) -%}
+          {%- if seconds > 0 -%}
+            The {{washer_name}} will be finished in
+            {%- set delta = timedelta(seconds=seconds) -%}
+            {%- if seconds > 86400 -%}
+              more than {{ delta|regex_replace(',.*','') }}
+            {%- elif seconds > 60 -%}
+              {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
+              {%- set hours = parsed.strftime("%H")|int -%}
+              {%- set mins = parsed.strftime("%M")|int -%}
+
+              {{hours if hours > 0 }} {{'hours' if hours > 1 else 'hour' if hours == 1 }} {{mins if mins > 0 }} {{'minutes' if mins > 1 else 'minute' if mins == 1 }}.
+            {%- else -%}
+              less than a minute.
+            {%- endif -%}
+          {%- endif -%}
+        {%- endif -%}
+      dryer_time_left_message: |
+        {%- if washer_completion_time -%}
+          {%- set seconds = as_timestamp(states(dryer_completion_time)) - as_timestamp(now()) -%}
+          {%- if seconds > 0 -%}
+            The {{dryer_name}} will be finished in
+            {%- set delta = timedelta(seconds=seconds) -%}
+            {%- if seconds > 86400 -%}
+              more than {{ delta|regex_replace(',.*','') }}
+            {%- elif seconds > 60 -%}
+              {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
+              {%- set hours = parsed.strftime("%H")|int -%}
+              {%- set mins = parsed.strftime("%M")|int -%}
+
+              {{hours if hours > 0 }} {{'hours' if hours > 1 else 'hour' if hours == 1 }} {{mins if mins > 0 }} {{'minutes' if mins > 1 else 'minute' if mins == 1 }}.
+            {%- else -%}
+              less than a minute.
+            {%- endif -%}
+          {%- endif -%}
+        {%- endif -%}
+      
+      notification_message: |
+        {{ complete_message }}
+        {{ washer_time_left_message }}
+        {{ dryer_time_left_message }}
+
+  - service: logbook.log
+    data:
+      name: "{{ this.attributes.friendly_name }}"
+      message: "{{ notification_message }}"
+      entity_id: "{{ trigger.entity_id if (trigger and trigger.entity_id) else this.entity_id }}"
+
+  - alias: Notifcation 1
+    if:
+      - condition: template
+        # verify valid action, plus schedule is not off
+        value_template: |
+          {{
+            (notify1_type and notify1_type != 'none.none')
+            and (notify1_schedule == [] or states(notify1_schedule) != 'off')
+          }}
+    then:
+      - service: !input notify1_type
+        data:
+          message: "{{ notification_message }}"
+          target: !input notify1_targets
+
+  - alias: Notifcation 2
+    if:
+      - condition: template
+        # verify valid action, plus schedule is not off
+        value_template: |
+          {{
+            (notify2_type and notify2_type != 'none.none')
+            and (notify2_schedule == [] or states(notify2_schedule) != 'off')
+          }}
+    then:
+      - service: !input notify2_type
+        data:
+          message: "{{ notification_message }}"
+
+  - alias: Custom actions
+    if:
+      - condition: template
+        value_template: "{{ custom_actions != [] }}"
+    then: !input custom_actions
