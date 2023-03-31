@@ -9,26 +9,29 @@ blueprint:
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
 
   input:
-    switch_entity:
+    controlled_entity:
       name: Controlled Light/Switch
       description: The light or switch to be controlled by the motion sensor(s).
       selector:
         entity: 
           domain: [switch,light,input_boolean]
 
-    motion_entity:
-      name: Motion Sensor(s)
-      description: > 
-        Trigger to turn light on. Anytime this turns **on**, the timer will be reset.
-        This can also include door sensors or other types of triggers.
+    trigger_entity:
+      name: Trigger(s)
+      description: >-
+        Entities that cause the light to turn on. This is usually motion sensors or door contacts, but can be any type of on/off trigger.
+
+
+        Anytime a trigger turns **on**, the timer will be reset to the **Off Timeout** value. **off** values
+        are ignored. After the **Off Timeout** lights will automatically turn off.
       selector:
         entity: 
           domain: [ binary_sensor, input_boolean ]
           multiple: true
 
-    motion_timer:
-      name: Motion Timer
-      description: >
+    off_timer:
+      name: Off Timer
+      description: >-
         Timer helper entity that holds the countdown for motion.
 
 
@@ -37,8 +40,8 @@ blueprint:
         entity: 
           domain: timer
 
-    motion_timeout:
-      name: Motion Timeout
+    off_timeout:
+      name: Off Timeout
       description: >
         Time from the last motion event after which the lights are turned off.
       default: {minutes: 5}
@@ -70,17 +73,12 @@ mode: queued
 max_exceeded: silent
 
 variables:
-  switch_entity: !input switch_entity
-  motion_entity: !input motion_entity
-  motion_timer: !input motion_timer
-  motion_timeout: !input motion_timeout
   cooldown_timer: !input cooldown_timer
-  cooldown_timeout: !input cooldown_timeout
 
 trigger:
   - id: switch_trigger
     platform: state
-    entity_id: !input switch_entity
+    entity_id: !input controlled_entity
 
   - id: cooldown_timer_trigger
     platform: state
@@ -90,12 +88,12 @@ trigger:
 
   - id: motion_trigger
     platform: state
-    entity_id: !input motion_entity
+    entity_id: !input trigger_entity
     to: 'on'
 
-  - id: motion_timer_trigger
+  - id: off_timer_trigger
     platform: state
-    entity_id: !input motion_timer
+    entity_id: !input off_timer
     from: active
     to: idle
 
@@ -120,7 +118,7 @@ condition:
           - condition: trigger
             id:
               - motion_trigger
-              - motion_timer_trigger
+              - off_timer_trigger
 
 action:
   - choose:
@@ -131,6 +129,9 @@ action:
             service: timer.start
             data: { duration: !input cooldown_timeout }
             target: { entity_id: !input cooldown_timer }
+          - alias: Pause motion timer
+            service: timer.pause
+            target: { entity_id: !input off_timer }
 
       - alias: Motion triggered
         conditions: { condition: trigger, id: motion_trigger }
@@ -138,36 +139,36 @@ action:
         
           - alias: Turn on switch
             service: switch.turn_on
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
           - alias: Turn on light
             service: light.turn_on
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
           - alias: Turn on boolean
             service: input_boolean.turn_on
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
 
           - alias: (Re)start motion timer
             service: timer.start
-            data: { duration: !input motion_timeout }
-            target: { entity_id: !input motion_timer }
+            data: { duration: !input off_timeout }
+            target: { entity_id: !input off_timer }
 
       - alias: Cooldown complete
         conditions: { condition: trigger, id: cooldown_timer_trigger }
         sequence:
           - alias: (Re)start motion timer
             service: timer.start
-            data: { duration: !input motion_timeout }
-            target: { entity_id: !input motion_timer }
+            data: { duration: !input off_timeout }
+            target: { entity_id: !input off_timer }
 
       - alias: Motion timeout
-        conditions: { condition: trigger, id: motion_timer_trigger }
+        conditions: { condition: trigger, id: off_timer_trigger }
         sequence:
           - alias: Turn off switch
             service: switch.turn_off
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
           - alias: Turn off light
             service: light.turn_off
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
           - alias: Turn off boolean
             service: input_boolean.turn_off
-            target: { entity_id: !input switch_entity }
+            target: { entity_id: !input controlled_entity }
