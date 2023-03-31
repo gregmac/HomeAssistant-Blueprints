@@ -1,0 +1,173 @@
+blueprint:
+  name: "Motion Trigger with Override"
+  description: >-
+    Control a light or switch with motion (or other sensors), including automatically turning them off.
+
+
+    If the light is manually controlled, motion events are disabled for an amount of time.
+  domain: automation
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
+
+  input:
+    switch_entity:
+      name: Controlled Light/Switch
+      description: The light or switch to be controlled by the motion sensor(s).
+      selector:
+        entity: 
+          domain: [switch,light,input_boolean]
+
+    motion_entity:
+      name: Motion Sensor(s)
+      description: > 
+        Trigger to turn light on. Anytime this turns **on**, the timer will be reset.
+        This can also include door sensors or other types of triggers.
+      selector:
+        entity: 
+          domain: [ binary_sensor, input_boolean ]
+          multiple: true
+
+    motion_timer:
+      name: Motion Timer
+      description: >
+        Timer helper entity that holds the countdown for motion.
+
+
+        This must be created manually in **Settings → Devices → Helpers**.
+      selector:
+        entity: 
+          domain: timer
+
+    motion_timeout:
+      name: Motion Timeout
+      description: >
+        Time from the last motion event after which the lights are turned off.
+      default: {minutes: 5}
+      selector:
+        duration:
+
+    cooldown_timer:
+      name: Cooldown Timer
+      description: >
+        Optional. Timer helper entity that holds the countdown for cooldown.
+
+
+        This must be created manually in **Settings → Devices → Helpers**.
+      default: []
+      selector:
+        entity: 
+          domain: timer
+
+    cooldown_timeout:
+      name: Cooldown Time
+      description: >
+        Amount of time to ignore events for after switch is manually modified.
+        After this time expires, the **Motion Timeout** will be activated, shutting off the lights.
+      default: {minutes: 5}
+      selector:
+        duration:
+
+mode: queued
+max_exceeded: silent
+
+variables:
+  switch_entity: !input switch_entity
+  motion_entity: !input motion_entity
+  motion_timer: !input motion_timer
+  motion_timeout: !input motion_timeout
+  cooldown_timer: !input cooldown_timer
+  cooldown_timeout: !input cooldown_timeout
+
+trigger:
+  - id: switch_trigger
+    platform: state
+    entity_id: !input switch_entity
+
+  - id: cooldown_timer_trigger
+    platform: state
+    entity_id: !input cooldown_timer
+    from: active
+    to: idle
+
+  - id: motion_trigger
+    platform: state
+    entity_id: !input motion_entity
+    to: 'on'
+
+  - id: motion_timer_trigger
+    platform: state
+    entity_id: !input motion_timer
+    from: active
+    to: idle
+
+condition:
+  - or:
+      - alias: Switch only if not triggered by this automation
+        and:
+          - condition: trigger
+            id: switch_trigger
+          - alias: 'Not triggered by self'
+            condition: template
+            value_template: "{{ this.context.id != trigger.to_state.context.id }}"
+
+      - alias: Always allow cooldown trigger
+        condition: trigger
+        id: cooldown_timer_trigger
+
+      - alias: Motion and motion timeout only if not in cooldown
+        and:
+          - condition: template
+            value_template: "{{ states(cooldown_timer|string) != 'active' }}"
+          - condition: trigger
+            id:
+              - motion_trigger
+              - motion_timer_trigger
+
+action:
+  - choose:
+      - alias: Switch changed
+        conditions: [ { condition: trigger, id: switch_trigger } ]
+        sequence:
+          - alias: (Re)start cooldown timer
+            service: timer.start
+            data: { duration: !input cooldown_timeout }
+            target: { entity_id: !input cooldown_timer }
+
+      - alias: Motion triggered
+        conditions: { condition: trigger, id: motion_trigger }
+        sequence:
+        
+          - alias: Turn on switch
+            service: switch.turn_on
+            target: { entity_id: !input switch_entity }
+          - alias: Turn on light
+            service: light.turn_on
+            target: { entity_id: !input switch_entity }
+          - alias: Turn on boolean
+            service: input_boolean.turn_on
+            target: { entity_id: !input switch_entity }
+
+          - alias: (Re)start motion timer
+            service: timer.start
+            data: { duration: !input motion_timeout }
+            target: { entity_id: !input motion_timer }
+
+      - alias: Cooldown complete
+        conditions: { condition: trigger, id: cooldown_timer_trigger }
+        sequence:
+          - alias: (Re)start motion timer
+            service: timer.start
+            data: { duration: !input motion_timeout }
+            target: { entity_id: !input motion_timer }
+
+      - alias: Motion timeout
+        conditions: { condition: trigger, id: motion_timer_trigger }
+        sequence:
+          - alias: Turn off switch
+            service: switch.turn_off
+            target: { entity_id: !input switch_entity }
+          - alias: Turn off light
+            service: light.turn_off
+            target: { entity_id: !input switch_entity }
+          - alias: Turn off boolean
+            service: input_boolean.turn_off
+            target: { entity_id: !input switch_entity }
