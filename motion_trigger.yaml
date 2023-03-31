@@ -35,7 +35,8 @@ blueprint:
         Timer helper entity that holds the countdown for motion.
 
 
-        This must be created manually in **Settings → Devices → Helpers**.
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers),
+        and must only be used for this automation.
       selector:
         entity: 
           domain: timer
@@ -54,7 +55,8 @@ blueprint:
         Optional. Timer helper entity that holds the countdown for cooldown.
 
 
-        This must be created manually in **Settings → Devices → Helpers**.
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers),
+        and must only be used for this automation.
       default: []
       selector:
         entity: 
