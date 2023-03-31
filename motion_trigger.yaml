@@ -60,12 +60,22 @@ blueprint:
         entity: 
           domain: timer
 
-    cooldown_timeout:
-      name: Cooldown Time
-      description: >
-        Amount of time to ignore events for after switch is manually modified.
+    on_cooldown_timeout:
+      name: Switched On Cooldown Time
+      description: >-
+        Amount of time to suspend automatically turning off the lights for if the switch is manually turned on.
+
+
         After this time expires, the **Motion Timeout** will be activated, shutting off the lights.
-      default: {minutes: 5}
+      default: {hours: 1}
+      selector:
+        duration:
+
+    off_cooldown_timeout:
+      name: Switched Off Cooldown Time
+      description: >-
+        Amount of time to ignore trigger events for after switch is manually turned off.
+      default: {minutes: 1}
       selector:
         duration:
 
@@ -76,9 +86,15 @@ variables:
   cooldown_timer: !input cooldown_timer
 
 trigger:
-  - id: switch_trigger
+  - id: switch_on_trigger
     platform: state
     entity_id: !input controlled_entity
+    to: 'on'
+
+  - id: switch_off_trigger
+    platform: state
+    entity_id: !input controlled_entity
+    to: 'off'
 
   - id: cooldown_timer_trigger
     platform: state
@@ -102,7 +118,9 @@ condition:
       - alias: Switch only if not triggered by this automation
         and:
           - condition: trigger
-            id: switch_trigger
+            id: 
+              - switch_on_trigger
+              - switch_off_trigger
           - alias: 'Not triggered by self'
             condition: template
             value_template: "{{ this.context.id != trigger.to_state.context.id }}"
@@ -122,12 +140,23 @@ condition:
 
 action:
   - choose:
-      - alias: Switch changed
-        conditions: [ { condition: trigger, id: switch_trigger } ]
+      - alias: Manually switched on
+        conditions: [ { condition: trigger, id: switch_on_trigger } ]
         sequence:
           - alias: (Re)start cooldown timer
             service: timer.start
-            data: { duration: !input cooldown_timeout }
+            data: { duration: !input on_cooldown_timeout }
+            target: { entity_id: !input cooldown_timer }
+          - alias: Pause motion timer
+            service: timer.pause
+            target: { entity_id: !input off_timer }
+
+      - alias: Manually switched off
+        conditions: [ { condition: trigger, id: switch_off_trigger } ]
+        sequence:
+          - alias: (Re)start cooldown timer
+            service: timer.start
+            data: { duration: !input off_cooldown_timeout }
             target: { entity_id: !input cooldown_timer }
           - alias: Pause motion timer
             service: timer.pause
