@@ -161,43 +161,64 @@ action:
         {%- endif -%}
 
       # create messages like "The dryer will be finished in 1 hour 24 minutes."
+      # only added if this wasn't the device that triggered. In case of manual trigger, both are added
       washer_time_left_message: |
-        {%- if washer_completion_time -%}
+        {%- if trigger.entity_id != washer_job_state and washer_completion_time -%}
           {%- set seconds = as_timestamp(states(washer_completion_time)) - as_timestamp(now()) -%}
-          {%- if seconds > 0 -%}
-            The {{washer_name}} will be finished in
-            {%- set delta = timedelta(seconds=seconds) -%}
-            {%- if seconds > 86400 -%}
-              more than {{ delta|regex_replace(',.*','') }}
-            {%- elif seconds > 60 -%}
-              {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
-              {%- set hours = parsed.strftime("%H")|int -%}
-              {%- set mins = parsed.strftime("%M")|int -%}
+          {%- set secondsAbs = seconds|abs -%}
 
-              {{hours if hours > 0 }} {{'hours' if hours > 1 else 'hour' if hours == 1 }} {{mins if mins > 0 }} {{'minutes' if mins > 1 else 'minute' if mins == 1 }}.
-            {%- else -%}
-              less than a minute.
-            {%- endif -%}
+          {## Delta contains eg "1 day, 04:23:45".
+              Adds 31s so eg: 1m31s rounds up to "2 minutes left" ##}
+          {%- set delta = timedelta(seconds=secondsAbs+31) -%} 
+          {%- if secondsAbs > 86400 -%}
+            {## Take day part only, eg: "more than 1 day" ##}
+            {%- set timestring = "more than " + delta|regex_replace(',.*','') -%}
+          {%- elif secondsAbs >= 60 -%}
+            {## String like "1 hour 24 minutes" ##}
+            {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
+            {%- set hours = parsed.strftime("%H")|int -%}
+            {%- set mins = parsed.strftime("%M")|int -%}
+            {%- set timestring = 
+              ((hours|string + (' hours ' if hours > 1 else ' hour ')) if hours > 0 else '') 
+              + ((mins|string + (' minutes ' if mins > 1 else ' minute ')) if mins > 0 else '') -%}
+          {%- else -%}
+            {%- set timestring = "less than a minute" -%}
           {%- endif -%}
+
+          {% if seconds > 0 -%}
+            The {{washer_name}} will be finished in {{timestring|trim}}.
+          {%- else -%}
+            The {{washer_name}} finished {{timestring|trim}} ago.
+          {%- endif %}
         {%- endif -%}
       dryer_time_left_message: |
-        {%- if washer_completion_time -%}
+        {%- if trigger.entity_id != dryer_job_state and dryer_completion_time -%}
           {%- set seconds = as_timestamp(states(dryer_completion_time)) - as_timestamp(now()) -%}
-          {%- if seconds > 0 -%}
-            The {{dryer_name}} will be finished in
-            {%- set delta = timedelta(seconds=seconds) -%}
-            {%- if seconds > 86400 -%}
-              more than {{ delta|regex_replace(',.*','') }}
-            {%- elif seconds > 60 -%}
-              {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
-              {%- set hours = parsed.strftime("%H")|int -%}
-              {%- set mins = parsed.strftime("%M")|int -%}
+          {%- set secondsAbs = seconds|abs -%}
 
-              {{hours if hours > 0 }} {{'hours' if hours > 1 else 'hour' if hours == 1 }} {{mins if mins > 0 }} {{'minutes' if mins > 1 else 'minute' if mins == 1 }}.
-            {%- else -%}
-              less than a minute.
-            {%- endif -%}
+          {## Delta contains eg "1 day, 04:23:45".
+              Adds 31s so eg: 1m31s rounds up to "2 minutes left" ##}
+          {%- set delta = timedelta(seconds=secondsAbs+31) -%} 
+          {%- if secondsAbs > 86400 -%}
+            {## Take day part only, eg: "more than 1 day" ##}
+            {%- set timestring = "more than " + delta|regex_replace(',.*','') -%}
+          {%- elif secondsAbs >= 60 -%}
+            {## String like "1 hour 24 minutes" ##}
+            {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
+            {%- set hours = parsed.strftime("%H")|int -%}
+            {%- set mins = parsed.strftime("%M")|int -%}
+            {%- set timestring = 
+              ((hours|string + (' hours ' if hours > 1 else ' hour ')) if hours > 0 else '') 
+              + ((mins|string + (' minutes ' if mins > 1 else ' minute ')) if mins > 0 else '') -%}
+          {%- else -%}
+            {%- set timestring = "less than a minute" -%}
           {%- endif -%}
+
+          {% if seconds > 0 -%}
+            The {{dryer_name}} will be finished in {{timestring|trim}}.
+          {%- else -%}
+            The {{dryer_name}} finished {{timestring|trim}} ago.
+          {%- endif %}
         {%- endif -%}
       
       notification_message: |
