@@ -242,6 +242,13 @@ action:
         {{ washer_time_left_message }}
         {{ dryer_time_left_message }}
 
+  - if:
+      - condition: template
+        # verify valid action, plus schedule is not off
+        value_template: "{{ not notification_message }}"
+    then:
+      - stop: "Nothing to announce"
+
   - service: logbook.log
     data:
       name: "{{ this.attributes.friendly_name }}"
