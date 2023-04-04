@@ -5,6 +5,13 @@ blueprint:
 
 
     If the light is manually controlled, motion events are disabled for an amount of time.
+  # TODO:
+  # - Docs about manually setting timer values
+  # - Sun
+  # - Schedule?
+  # - Custom actions
+  # - brightness
+  # - transition on/off
   domain: automation
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
 
