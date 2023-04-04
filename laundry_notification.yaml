@@ -3,37 +3,54 @@ blueprint:
   author: gregmac
   domain: automation
   description: >-
-    Send notification of the job completion of a Washer and Dryer to
-    one or more notification services.
+    Send notification of the job completion and job remaining time of a
+    Washer and/or Dryer to one or more notification services.
 
 
-    Automatically configures a message to send to common targets,
-    but also can be configured for custom actions.
-  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/washer_dryer_notification.yaml
+    Support for:
+
+    * Voice notifications (Google Assistant)
+
+    * Mobile notifications
+
+    * Custom actions
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/laundry_notification.yaml
 
   input:
     washer_job_state:
       name: Washer Job State
+      description: >-
+        Sensor holding current job state. This script looks for values including
+        `finish`, `completed` and `done`.
       selector:
         entity:
           domain: sensor
 
     washer_completion_time:
       name: Washer Completion Time
+      description: >-
+        Optional. Sensor holding job completion time. If supplied, announcements can say
+        things like "The Dryer has finished. The Washer will be finished finished in 1 hour 6 minutes."
+      default: []
       selector:
         entity:
           domain: sensor
 
     dryer_job_state:
       name: Dryer Job State
-      description: |
-        Dryer
+      description: >-
+        Sensor holding current job state. This script looks for values including
+        `finish`, `completed` and `done`.
       selector:
         entity:
           domain: sensor
 
     dryer_completion_time:
       name: Dryer Completion Time
+      description: >-
+        Optional. Sensor holding job completion time. If supplied, announcements can say
+        things like "The Washer has finished. The Dryer finsished 29 minutes ago."
+      default: []
       selector:
         entity:
           domain: sensor
@@ -49,7 +66,7 @@ blueprint:
         duration:
 
     notify1_type: 
-      name: "Notification: Announcement"
+      name: "Announcement"
       description: >
         Use voice notification
       default: none.none
@@ -63,27 +80,31 @@ blueprint:
           custom_value: true
 
     notify1_targets:
-      name: "Notification 1: Targets(s) to notify"
+      name: "Announcement: Areas"
       description: |
-        Optional. Usually meeans "area" to notify, blank usually means "everywhere".
+        Optional. Areas to notify. If empty, notifies all areas.
       default: []
       selector:
         area:
           multiple: true
 
     notify1_schedule:
-      name: "Notification 1: Schedule"
-      description: |
-        Optional. If set, Notification 1 is only sent when this is active.
+      name: "Announcement: Schedule"
+      description: >-
+        Optional. If set, restricts the time voice announcements will be made.
       default: []
       selector:
         entity:
           domain: schedule
 
     notify2_type: 
-      name: "Notification 2"
-      description: >
-        Use notification service
+      name: "Notification"
+      description: >-
+        Use notification service to send to mobile devices.
+
+
+        If entering a custom value, this should be the service name, 
+        for example `notify.cell_phone_1`.
       default: notify.notify
       selector:
         select:
@@ -95,9 +116,9 @@ blueprint:
           custom_value: true
 
     notify2_schedule:
-      name: "Notification 2: Schedule"
+      name: "Notification: Schedule"
       description: |
-        Optional. If set, Notification 2 is only sent when this is active.
+        Optional. If set, restricts the time notifications will be sent.
       default: []
       selector:
         entity:
