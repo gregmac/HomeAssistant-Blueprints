@@ -6,7 +6,6 @@ blueprint:
 
     If the light is manually controlled, motion events are disabled for an amount of time.
   # TODO:
-  # - Docs about manually setting timer values
   # - Sun
   # - Schedule?
   # - Custom actions
@@ -29,8 +28,8 @@ blueprint:
         Entities that cause the light to turn on. This is usually motion sensors or door contacts, but can be any type of on/off trigger.
 
 
-        Anytime a trigger turns **on**, the timer will be reset to the **Off Timeout** value. **off** values
-        are ignored. After the **Off Timeout** lights will automatically turn off.
+        Anytime a trigger turns **on**, the timer will be reset to the **Off Timeout** value (**off** triggers are
+        ignored), then after the **Off Timeout** gets to zero the controlled light or switch will be automatically turned off.
       selector:
         entity: 
           domain: [ binary_sensor, input_boolean ]
@@ -42,8 +41,11 @@ blueprint:
         Timer helper entity that holds the countdown for motion.
 
 
-        This must be created manually in [**Settings → Devices → Helpers**](../../helpers),
-        and must only be used for this automation.
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers).
+        Anytime this timer gets to `0` (so long as **Cooldown Timer** is not active)
+        it will cause the light to turn off. It's fine to set this from another automation or
+        UI controls but sharing this timer for other purposes (such as another instance of
+        this *Motion Trigger* automation) will likely cause unintended behaviors.
       selector:
         entity: 
           domain: timer
@@ -69,11 +71,16 @@ blueprint:
     cooldown_timer:
       name: Cooldown Timer
       description: >
-        Optional. Timer helper entity that holds the countdown for cooldown.
+        Optional. Timer helper entity that holds the countdown for cooldown. When this is active,
+        all **Triggers** are ignored and this automation won't turn the light on or off.
+        It is activated whenever 
 
 
-        This must be created manually in [**Settings → Devices → Helpers**](../../helpers),
-        and must only be used for this automation.
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers).
+        Anytime this counter gets to `0` it will then activate the **Off Timer**, which will
+        in turn shut the light off. It's fine to set this from another automation or
+        UI controls but sharing this timer for other purposes (such as another instance of
+        this *Motion Trigger* automation) will likely cause unintended behaviors.
       default: []
       selector:
         entity: 
