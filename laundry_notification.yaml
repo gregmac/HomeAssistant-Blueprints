@@ -124,6 +124,14 @@ blueprint:
         entity:
           domain: schedule
 
+    notify2_timeout:
+      name: "Notification: Timeout"
+      description: |
+        Optional. If set, the notification will clear after this amount of time (on supported platforms).
+      default: { hours: 2 }
+      selector:
+        duration:
+
     custom_actions: 
       name: "Custom Actions"
       description: >
@@ -301,9 +309,17 @@ action:
             and (notify2_schedule == [] or states(notify2_schedule) != 'off')
           }}
     then:
+      - variables:
+          notify2_timeout: !input notify2_timeout
       - service: !input notify2_type
         data:
           message: "{{ notification_message }}"
+          data:
+            # replace previous notifications:
+            tag: "{{ this.entity_id }}" 
+            # android-specific options:
+            channel: "{{ this.attributes.friendly_name }}"
+            timeout: "{{ (notify2_timeout.hours * 60 + notify2_timeout.minutes) * 60 + notify2_timeout.seconds }}"
 
   - alias: Custom actions
     if:
