@@ -56,6 +56,16 @@ blueprint:
       selector:
         duration:
 
+    cooldown_entity:
+      name: Cooldown Triggers
+      default: []
+      description: |
+        Any additional controls that trigger a cooldown period during which this automation won't turn 
+        the **Controlled Light/Switch** either on or off.
+      selector:
+        entity: 
+          domain: [switch,light,input_boolean]
+
     cooldown_timer:
       name: Cooldown Timer
       description: >
@@ -105,11 +115,15 @@ trigger:
     entity_id: !input controlled_entity
     to: 'off'
 
-  - id: cooldown_timer_trigger
+  - id: cooldown_entity_on_trigger
     platform: state
-    entity_id: !input cooldown_timer
-    from: active
-    to: idle
+    entity_id: !input cooldown_entity
+    to: 'on'
+
+  - id: cooldown_entity_off_trigger
+    platform: state
+    entity_id: !input cooldown_entity
+    to: 'off'
 
   - id: motion_trigger
     platform: state
@@ -122,6 +136,12 @@ trigger:
     from: active
     to: idle
 
+  - id: cooldown_timer_trigger
+    platform: state
+    entity_id: !input cooldown_timer
+    from: active
+    to: idle
+
 condition:
   - or:
       - alias: Switch only if not triggered by this automation
@@ -130,6 +150,8 @@ condition:
             id: 
               - switch_on_trigger
               - switch_off_trigger
+              - cooldown_entity_on_trigger
+              - cooldown_entity_off_trigger
           - alias: 'Not triggered by self'
             condition: template
             value_template: "{{ this.context.id != trigger.to_state.context.id }}"
@@ -150,7 +172,7 @@ condition:
 action:
   - choose:
       - alias: Manually switched on
-        conditions: [ { condition: trigger, id: switch_on_trigger } ]
+        conditions: [ { condition: trigger, id: [ switch_on_trigger, cooldown_entity_on_trigger ] } ]
         sequence:
           - alias: (Re)start cooldown timer
             service: timer.start
@@ -161,7 +183,7 @@ action:
             target: { entity_id: !input off_timer }
 
       - alias: Manually switched off
-        conditions: [ { condition: trigger, id: switch_off_trigger } ]
+        conditions: [ { condition: trigger, id: [ switch_off_trigger, cooldown_entity_off_trigger ] } ]
         sequence:
           - alias: (Re)start cooldown timer
             service: timer.start
