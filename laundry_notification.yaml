@@ -227,7 +227,10 @@ action:
             {%- endif -%}
 
             {% if seconds > 0 -%}
-              The {{washer_name}} will be finished in {{timestring|trim}}.
+              {## Ensure in valid state to say a completion time -- specifically "done" will sometimes have a future date ##}
+              {% if not states(washer_job_state) in ['unknown','none','done','finish','finished','complete','completed'] -%}
+                The {{washer_name}} will be finished in {{timestring|trim}}.
+              {%- endif %}
             {%- else -%}
               The {{washer_name}} finished {{timestring|trim}} ago.
             {%- endif -%}
@@ -259,7 +262,10 @@ action:
             {%- endif -%}
 
             {% if seconds > 0 -%}
-              The {{dryer_name}} will be finished in {{timestring|trim}}.
+              {## Ensure in valid state to say a completion time -- specifically "done" will sometimes have a future date ##}
+              {% if not states(dryer_job_state) in ['unknown','none','done','finish','finished','complete','completed'] -%}
+                The {{dryer_name}} will be finished in {{timestring|trim}}.
+              {%- endif %}
             {%- else -%}
               The {{dryer_name}} finished {{timestring|trim}} ago.
             {%- endif %}
