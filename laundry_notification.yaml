@@ -199,6 +199,14 @@ action:
           The {{ dryer_name }} has finished.
         {%- endif -%}
 
+      # icon for mobile notifications (defaults to washing machine)
+      notification_icon: |
+        {% if trigger.entity_id == dryer_job_state %}
+          mdi:tumble-dryer
+        {%- else -%}
+          mdi:washing-machine
+        {%- endif -%}
+
       # create messages like "The dryer will be finished in 1 hour 24 minutes."
       # only added if this wasn't the device that triggered. In case of manual trigger, both are added
       washer_time_left_message: |
@@ -326,6 +334,7 @@ action:
             # android-specific options:
             channel: "{{ this.attributes.friendly_name }}"
             timeout: "{{ (notify2_timeout.hours * 60 + notify2_timeout.minutes) * 60 + notify2_timeout.seconds }}"
+            notification_icon: "{{ notification_icon }}"
 
   - alias: Custom actions
     if:
