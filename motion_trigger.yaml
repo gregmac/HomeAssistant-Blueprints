@@ -4,10 +4,16 @@ blueprint:
     Control a light or switch with motion (or other sensors), including automatically turning them off.
 
 
-    If the light is manually controlled, motion events are disabled for an amount of time.
+    Features:
+
+    * If light is manually controlled, motion control is disabled (cooldown period).
+    
+      * Cooldown period is adjustable for both turning the light on and off
+
+    * An optional switch or schedule to enable/disable motion-based triggers
+
   # TODO:
   # - Sun
-  # - Schedule?
   # - Custom actions
   # - brightness
   # - transition on/off
@@ -34,6 +40,15 @@ blueprint:
         entity: 
           domain: [ binary_sensor, input_boolean ]
           multiple: true
+
+    trigger_enable:
+      name: Enabled
+      description: >-
+        Optional. If set, auto-on and off is only enabled if this entity is on.
+      default: []
+      selector:
+        entity: 
+          domain: [ binary_sensor, schedule, input_boolean ]
 
     off_timer:
       name: Off Timer
@@ -110,6 +125,7 @@ max_exceeded: silent
 
 variables:
   cooldown_timer: !input cooldown_timer
+  trigger_enable: !input trigger_enable
 
 trigger:
   - id: switch_on_trigger
@@ -169,9 +185,14 @@ condition:
 
       - alias: Motion and motion timeout only if not in cooldown
         and:
-          - condition: template
+          - alias: Enabled
+            condition: template
+            value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
+          - alias: Cooldown not active
+            condition: template
             value_template: "{{ states(cooldown_timer|string) != 'active' }}"
-          - condition: trigger
+          - alias: Motion or off timer
+            condition: trigger
             id:
               - motion_trigger
               - off_timer_trigger
