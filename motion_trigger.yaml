@@ -193,6 +193,7 @@ blueprint:
 
 mode: queued
 max_exceeded: silent
+trace: { stored_traces: 20 }
 
 variables:
   cooldown_timer: !input cooldown_timer
