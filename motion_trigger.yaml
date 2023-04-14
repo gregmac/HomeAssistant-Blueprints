@@ -10,10 +10,11 @@ blueprint:
     
       * Cooldown period is adjustable for both turning the light on and off
 
-    * An optional switch or schedule to enable/disable motion-based triggers
+    * Optionally enable via switch or schedule entity
+
+    * Optionally enable via sun elevation
 
   # TODO:
-  # - Sun
   # - Custom actions
   # - brightness
   # - transition on/off
@@ -42,13 +43,40 @@ blueprint:
           multiple: true
 
     trigger_enable:
-      name: Enabled
+      name: Enable Triggers
       description: >-
         Optional. If set, auto-on and off is only enabled if this entity is on.
       default: []
       selector:
         entity: 
           domain: [ binary_sensor, schedule, input_boolean ]
+
+    sun_elevation_max:
+      name: Sun Elevation
+      description: >-
+        Maximum sun elevation for auto-on to take effect. This allows only using motion control during the night.
+      default: '0'
+      selector: 
+        select:
+          options:
+            - label: Not affected by sun
+              value: '180'
+            - label: Early/Late Daytime (below 3°)
+              value: '3'
+            - label: Sunrise/Sunset (below 0°)
+              value: '0'
+            - label: Civil Twilight (below -3°)
+              value: '-3'
+            - label: Civil Dawn/Dusk (below -6°)
+              value: '-6'
+            - label: Nautical Twilight (below -9°)
+              value: '-9'
+            - label: Nautical Dawn/Dusk (below -12°)
+              value: '-12'
+            - label: Astronomical Twilight (below -16°)
+              value: '-16'
+            - label: Night (beolow -18°)
+              value: '-18'
 
     off_timer:
       name: Off Timer
@@ -126,6 +154,7 @@ max_exceeded: silent
 variables:
   cooldown_timer: !input cooldown_timer
   trigger_enable: !input trigger_enable
+  sun_elevation_max: !input sun_elevation_max
 
 trigger:
   - id: switch_on_trigger
@@ -183,19 +212,32 @@ condition:
         condition: trigger
         id: cooldown_timer_trigger
 
-      - alias: Motion and motion timeout only if not in cooldown
+      - alias: Motion (if not cooldown, not disabled, and sun elevation ok)
         and:
+          - alias: Motion trigger
+            condition: trigger
+            id: motion_trigger
           - alias: Enabled
             condition: template
             value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
           - alias: Cooldown not active
             condition: template
             value_template: "{{ states(cooldown_timer|string) != 'active' }}"
-          - alias: Motion or off timer
+          - alias: Sun below minimum elevation
+            condition: template
+            value_template: "{{ state_attr('sun.sun','elevation')|float(-180) <= sun_elevation_max|float(180) }}"
+
+      - alias: Off timer (only if not in cooldown and not disabled)
+        and:
+          - alias: Off timer
             condition: trigger
-            id:
-              - motion_trigger
-              - off_timer_trigger
+            id: off_timer_trigger
+          - alias: Enabled
+            condition: template
+            value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
+          - alias: Cooldown not active
+            condition: template
+            value_template: "{{ states(cooldown_timer|string) != 'active' }}"
 
 action:
   - choose:
