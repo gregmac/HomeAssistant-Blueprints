@@ -24,7 +24,12 @@ blueprint:
   input:
     controlled_entity:
       name: Controlled Light/Switch
-      description: The light or switch to be controlled by the motion sensor(s).
+      description: >-
+        The light or switch to be controlled by the motion sensor(s).
+
+
+        If a **Cooldown Timer** is specified, then changing this light manually (or from another automation or script)
+        will start the **Cooldown** period during which time the **Trigger(s)** will be ignored.
       selector:
         entity: 
           domain: [switch,light,input_boolean]
@@ -104,7 +109,7 @@ blueprint:
     cooldown_entity:
       name: Cooldown Triggers
       default: []
-      description: |
+      description: >-
         Any additional controls that trigger a cooldown period during which this automation won't turn 
         the **Controlled Light/Switch** either on or off.
       selector:
