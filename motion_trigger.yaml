@@ -16,8 +16,8 @@ blueprint:
 
     * Customize brightness and transition time
 
-  # TODO:
-  # - Custom actions
+    * Custom actions for on and off
+
   domain: automation
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
 
@@ -25,14 +25,18 @@ blueprint:
     controlled_entity:
       name: Controlled Light/Switch
       description: >-
-        The light or switch to be controlled by the motion sensor(s).
+        The light or switch to be controlled by the **Trigger(s)**.
 
 
         If a **Cooldown Timer** is specified, then changing this light manually (or from another automation or script)
         will start the **Cooldown** period during which time the **Trigger(s)** will be ignored.
+
+
+        Multiple entities can be picked, or none can be picked (useful when using **Custom Actions**).
       selector:
         entity: 
           domain: [switch,light,input_boolean]
+          multiple: true
 
     trigger_entity:
       name: Trigger(s)
@@ -173,7 +177,19 @@ blueprint:
       selector:
         number: { min: 0, max: 300, unit_of_measurement: 'seconds' }
 
+    on_action:
+      name: Custom Turn On Action
+      description: Action to run when one of the **Trigger(s)** turn on (and any other enable conditions are met).
+      default: []
+      selector:
+        action: {}
 
+    off_action:
+      name: Custom Turn Off Action
+      description: Action to run when the **Off Timeout** expires.
+      default: []
+      selector:
+        action: {}
 
 mode: queued
 max_exceeded: silent
@@ -220,6 +236,7 @@ trigger:
     entity_id: !input cooldown_timer
     from: active
     to: idle
+
 
 condition:
   - or:
@@ -293,17 +310,19 @@ action:
       - alias: Motion triggered
         conditions: { condition: trigger, id: motion_trigger }
         sequence:
-        
-          - alias: Turn on switch
-            service: switch.turn_on
-            target: { entity_id: !input controlled_entity }
-          - alias: Turn on light
-            service: light.turn_on
-            target: { entity_id: !input controlled_entity }
-            data: { brightness_pct: !input brightness_on, transition: !input transition_on }
-          - alias: Turn on boolean
-            service: input_boolean.turn_on
-            target: { entity_id: !input controlled_entity }
+          - parallel:
+              - alias: Turn on switch
+                service: switch.turn_on
+                target: { entity_id: !input controlled_entity }
+              - alias: Turn on light
+                service: light.turn_on
+                target: { entity_id: !input controlled_entity }
+                data: { brightness_pct: !input brightness_on, transition: !input transition_on }
+              - alias: Turn on boolean
+                service: input_boolean.turn_on
+                target: { entity_id: !input controlled_entity }
+              - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
+                then: !input on_action
 
           - alias: (Re)start motion timer
             service: timer.start
@@ -321,13 +340,17 @@ action:
       - alias: Motion timeout
         conditions: { condition: trigger, id: off_timer_trigger }
         sequence:
-          - alias: Turn off switch
-            service: switch.turn_off
-            target: { entity_id: !input controlled_entity }
-          - alias: Turn off light
-            service: light.turn_off
-            target: { entity_id: !input controlled_entity }
-            data: { transition: !input transition_off }
-          - alias: Turn off boolean
-            service: input_boolean.turn_off
-            target: { entity_id: !input controlled_entity }
+          - parallel:
+
+              - alias: Turn off switch
+                service: switch.turn_off
+                target: { entity_id: !input controlled_entity }
+              - alias: Turn off light
+                service: light.turn_off
+                target: { entity_id: !input controlled_entity }
+                data: { transition: !input transition_off }
+              - alias: Turn off boolean
+                service: input_boolean.turn_off
+                target: { entity_id: !input controlled_entity }
+              - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
+                then: !input off_action
