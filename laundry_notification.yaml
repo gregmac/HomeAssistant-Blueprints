@@ -3,8 +3,11 @@ blueprint:
   author: gregmac
   domain: automation
   description: >-
-    Send notification of the job completion and job remaining time of a
-    Washer and/or Dryer to one or more notification services.
+    Send notification of the job completion and job remaining time of a Washer and/or Dryer to
+    one or more notification services.
+
+
+    For example: *"The Dryer is finished. The washer will be finished in 42 minutes."*
 
 
     Support for:
@@ -14,6 +17,7 @@ blueprint:
     * Mobile notifications
 
     * Custom actions
+
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/laundry_notification.yaml
 
   input:
