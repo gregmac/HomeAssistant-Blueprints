@@ -43,3 +43,25 @@ Support for:
 * Mobile notifications
 
 * Custom actions
+
+
+## Motion Trigger with Override
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgregmac%2FHomeAssistant-Blueprints%2Fblob%2Fmain%2Fmotion_trigger.yaml)
+
+Control a light or switch with motion (or other sensors), including automatically turning them off.
+
+Features:
+
+* If light is manually controlled, motion control is disabled (cooldown period).
+
+* Cooldown period is adjustable for both turning the light on and off
+
+* Optionally enable via switch or schedule entity
+
+* Optionally enable via sun elevation
+
+* Customize brightness and transition time
+
+* Custom actions for on and off
+
