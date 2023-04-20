@@ -1,0 +1,357 @@
+blueprint:
+  name: "Motion Trigger with Override"
+  description: >-
+    Control a light or switch with motion (or other sensors), including automatically turning them off.
+
+
+    Features:
+
+    * If light is manually controlled, motion control is disabled (cooldown period).
+    
+      * Cooldown period is adjustable for both turning the light on and off
+
+    * Optionally enable via switch or schedule entity
+
+    * Optionally enable via sun elevation
+
+    * Customize brightness and transition time
+
+    * Custom actions for on and off
+
+  domain: automation
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
+
+  input:
+    controlled_entity:
+      name: Controlled Light/Switch
+      description: >-
+        The light or switch to be controlled by the **Trigger(s)**.
+
+
+        If a **Cooldown Timer** is specified, then changing this light manually (or from another automation or script)
+        will start the **Cooldown** period during which time the **Trigger(s)** will be ignored.
+
+
+        Multiple entities can be picked, or none can be picked (useful when using **Custom Actions**).
+      selector:
+        entity: 
+          domain: [switch,light,input_boolean]
+          multiple: true
+
+    trigger_entity:
+      name: Trigger(s)
+      description: >-
+        Entities that cause the light to turn on. This is usually motion sensors or door contacts, but can be any type of on/off trigger.
+
+
+        Anytime a trigger turns **on**, the timer will be reset to the **Off Timeout** value (**off** triggers are
+        ignored), then after the **Off Timeout** gets to zero the controlled light or switch will be automatically turned off.
+      selector:
+        entity: 
+          domain: [ binary_sensor, input_boolean ]
+          multiple: true
+
+    trigger_enable:
+      name: Enable Triggers
+      description: >-
+        Optional. If set, auto-on and off is only enabled if this entity is on.
+      default: []
+      selector:
+        entity: 
+          domain: [ binary_sensor, schedule, input_boolean ]
+
+    sun_elevation_max:
+      name: Sun Elevation
+      description: >-
+        Maximum sun elevation for auto-on to take effect. This allows only using motion control during the night.
+      default: '0'
+      selector: 
+        select:
+          options:
+            - label: Not affected by sun
+              value: '180'
+            - label: Early/Late Daytime (below 3°)
+              value: '3'
+            - label: Sunrise/Sunset (below 0°)
+              value: '0'
+            - label: Civil Twilight (below -3°)
+              value: '-3'
+            - label: Civil Dawn/Dusk (below -6°)
+              value: '-6'
+            - label: Nautical Twilight (below -9°)
+              value: '-9'
+            - label: Nautical Dawn/Dusk (below -12°)
+              value: '-12'
+            - label: Astronomical Twilight (below -16°)
+              value: '-16'
+            - label: Night (beolow -18°)
+              value: '-18'
+
+    off_timer:
+      name: Off Timer
+      description: >-
+        Timer helper entity that holds the countdown for motion.
+
+
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers).
+        Anytime this timer gets to `0` (so long as **Cooldown Timer** is not active)
+        it will cause the light to turn off. It's fine to set this from another automation or
+        UI controls but sharing this timer for other purposes (such as another instance of
+        this *Motion Trigger* automation) will likely cause unintended behaviors.
+      selector:
+        entity: 
+          domain: timer
+
+    off_timeout:
+      name: Off Timeout
+      description: >
+        Time from the last motion event after which the lights are turned off.
+      default: {minutes: 5}
+      selector:
+        duration:
+
+    cooldown_entity:
+      name: Cooldown Triggers
+      default: []
+      description: >-
+        Any additional controls that trigger a cooldown period during which this automation won't turn 
+        the **Controlled Light/Switch** either on or off.
+      selector:
+        entity: 
+          domain: [switch,light,input_boolean]
+
+    cooldown_timer:
+      name: Cooldown Timer
+      description: >
+        Optional. Timer helper entity that holds the countdown for cooldown. When this is active,
+        all **Triggers** are ignored and this automation won't turn the light on or off.
+        It is activated whenever 
+
+
+        This must be created manually in [**Settings → Devices → Helpers**](../../helpers).
+        Anytime this counter gets to `0` it will then activate the **Off Timer**, which will
+        in turn shut the light off. It's fine to set this from another automation or
+        UI controls but sharing this timer for other purposes (such as another instance of
+        this *Motion Trigger* automation) will likely cause unintended behaviors.
+      default: []
+      selector:
+        entity: 
+          domain: timer
+
+    on_cooldown_timeout:
+      name: Switched On Cooldown Time
+      description: >-
+        Amount of time to suspend automatically turning off the lights for if the switch is manually turned on.
+
+
+        After this time expires, the **Motion Timeout** will be activated, shutting off the lights.
+      default: {hours: 1}
+      selector:
+        duration:
+
+    off_cooldown_timeout:
+      name: Switched Off Cooldown Time
+      description: >-
+        Amount of time to ignore trigger events for after switch is manually turned off.
+      default: {minutes: 1}
+      selector:
+        duration:
+
+    brightness_on:
+      name: On Brightness
+      default: 100
+      selector: 
+        number: { min: 0, max: 100, step: 0.5, unit_of_measurement: '%' }
+
+    transition_on:
+      name: Transition time to On
+      description: Time, in seconds, to turn on
+      default: 2
+      selector:
+        number: { min: 0, max: 300, unit_of_measurement: 'seconds' }
+
+    transition_off:
+      name: Transition time to Off
+      description: Time, in seconds, to turn off
+      default: 2
+      selector:
+        number: { min: 0, max: 300, unit_of_measurement: 'seconds' }
+
+    on_action:
+      name: Custom Turn On Action
+      description: Action to run when one of the **Trigger(s)** turn on (and any other enable conditions are met).
+      default: []
+      selector:
+        action: {}
+
+    off_action:
+      name: Custom Turn Off Action
+      description: Action to run when the **Off Timeout** expires.
+      default: []
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+trace: { stored_traces: 20 }
+
+variables:
+  cooldown_timer: !input cooldown_timer
+  trigger_enable: !input trigger_enable
+  sun_elevation_max: !input sun_elevation_max
+
+trigger:
+  - id: switch_on_trigger
+    platform: state
+    entity_id: !input controlled_entity
+    to: 'on'
+
+  - id: switch_off_trigger
+    platform: state
+    entity_id: !input controlled_entity
+    to: 'off'
+
+  - id: cooldown_entity_on_trigger
+    platform: state
+    entity_id: !input cooldown_entity
+    to: 'on'
+
+  - id: cooldown_entity_off_trigger
+    platform: state
+    entity_id: !input cooldown_entity
+    to: 'off'
+
+  - id: motion_trigger
+    platform: state
+    entity_id: !input trigger_entity
+    to: 'on'
+
+  - id: off_timer_trigger
+    platform: state
+    entity_id: !input off_timer
+    from: active
+    to: idle
+
+  - id: cooldown_timer_trigger
+    platform: state
+    entity_id: !input cooldown_timer
+    from: active
+    to: idle
+
+
+condition:
+  - or:
+      - alias: Switch only if not triggered by this automation
+        and:
+          - condition: trigger
+            id: 
+              - switch_on_trigger
+              - switch_off_trigger
+              - cooldown_entity_on_trigger
+              - cooldown_entity_off_trigger
+          - alias: 'Not triggered by self'
+            condition: template
+            value_template: "{{ this.context.id != trigger.to_state.context.id }}"
+
+      - alias: Always allow cooldown trigger
+        condition: trigger
+        id: cooldown_timer_trigger
+
+      - alias: Motion (if not cooldown, not disabled, and sun elevation ok)
+        and:
+          - alias: Motion trigger
+            condition: trigger
+            id: motion_trigger
+          - alias: Enabled
+            condition: template
+            value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
+          - alias: Cooldown not active
+            condition: template
+            value_template: "{{ states(cooldown_timer|string) != 'active' }}"
+          - alias: Sun below minimum elevation
+            condition: template
+            value_template: "{{ state_attr('sun.sun','elevation')|float(-180) <= sun_elevation_max|float(180) }}"
+
+      - alias: Off timer (only if not in cooldown and not disabled)
+        and:
+          - alias: Off timer
+            condition: trigger
+            id: off_timer_trigger
+          - alias: Enabled
+            condition: template
+            value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
+          - alias: Cooldown not active
+            condition: template
+            value_template: "{{ states(cooldown_timer|string) != 'active' }}"
+
+action:
+  - choose:
+      - alias: Manually switched on
+        conditions: [ { condition: trigger, id: [ switch_on_trigger, cooldown_entity_on_trigger ] } ]
+        sequence:
+          - alias: (Re)start cooldown timer
+            service: timer.start
+            data: { duration: !input on_cooldown_timeout }
+            target: { entity_id: !input cooldown_timer }
+          - alias: Pause motion timer
+            service: timer.pause
+            target: { entity_id: !input off_timer }
+
+      - alias: Manually switched off
+        conditions: [ { condition: trigger, id: [ switch_off_trigger, cooldown_entity_off_trigger ] } ]
+        sequence:
+          - alias: (Re)start cooldown timer
+            service: timer.start
+            data: { duration: !input off_cooldown_timeout }
+            target: { entity_id: !input cooldown_timer }
+          - alias: Pause motion timer
+            service: timer.pause
+            target: { entity_id: !input off_timer }
+
+      - alias: Motion triggered
+        conditions: { condition: trigger, id: motion_trigger }
+        sequence:
+          - parallel:
+              - alias: Turn on switch
+                service: switch.turn_on
+                target: { entity_id: !input controlled_entity }
+              - alias: Turn on light
+                service: light.turn_on
+                target: { entity_id: !input controlled_entity }
+                data: { brightness_pct: !input brightness_on, transition: !input transition_on }
+              - alias: Turn on boolean
+                service: input_boolean.turn_on
+                target: { entity_id: !input controlled_entity }
+              - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
+                then: !input on_action
+
+          - alias: (Re)start motion timer
+            service: timer.start
+            data: { duration: !input off_timeout }
+            target: { entity_id: !input off_timer }
+
+      - alias: Cooldown complete
+        conditions: { condition: trigger, id: cooldown_timer_trigger }
+        sequence:
+          - alias: (Re)start motion timer
+            service: timer.start
+            data: { duration: !input off_timeout }
+            target: { entity_id: !input off_timer }
+
+      - alias: Motion timeout
+        conditions: { condition: trigger, id: off_timer_trigger }
+        sequence:
+          - parallel:
+
+              - alias: Turn off switch
+                service: switch.turn_off
+                target: { entity_id: !input controlled_entity }
+              - alias: Turn off light
+                service: light.turn_off
+                target: { entity_id: !input controlled_entity }
+                data: { transition: !input transition_off }
+              - alias: Turn off boolean
+                service: input_boolean.turn_off
+                target: { entity_id: !input controlled_entity }
+              - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
+                then: !input off_action
