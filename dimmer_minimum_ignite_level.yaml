@@ -1,6 +1,5 @@
 blueprint:
   name: "Dimmer Minimum Ignite Level"
-  author: gregmac
   domain: automation
   description: >
     Ensures that when a light is turned on to a brightness that is too low to make it actually light up,
@@ -15,6 +14,8 @@ blueprint:
 
     This happens based on state change, so works with lights no matter how they are controlled, including
     other automations and scenes.
+
+  author: gregmac
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/dimmer_minimum_ignite_level.yaml
 
   input:

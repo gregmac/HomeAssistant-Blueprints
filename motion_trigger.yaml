@@ -1,5 +1,6 @@
 blueprint:
   name: "Motion Trigger with Override"
+  domain: automation
   description: >-
     Control a light or switch with motion (or other sensors), including automatically turning them off.
 
@@ -18,7 +19,7 @@ blueprint:
 
     * Custom actions for on and off
 
-  domain: automation
+  author: gregmac
   source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/motion_trigger.yaml
 
   input:
