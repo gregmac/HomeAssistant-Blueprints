@@ -191,8 +191,7 @@ blueprint:
       selector:
         action: {}
 
-mode: queued
-max_exceeded: silent
+mode: single
 trace: { stored_traces: 20 }
 
 variables:
@@ -241,23 +240,19 @@ trigger:
 
 condition:
   - or:
-      - alias: Switch only if not triggered by this automation
-        and:
-          - condition: trigger
-            id: 
-              - switch_on_trigger
-              - switch_off_trigger
-              - cooldown_entity_on_trigger
-              - cooldown_entity_off_trigger
-          - alias: 'Not triggered by self'
-            condition: template
-            value_template: "{{ this.context.id != trigger.to_state.context.id }}"
+      - alias: Switch changed
+        condition: trigger
+        id: 
+          - switch_on_trigger
+          - switch_off_trigger
+          - cooldown_entity_on_trigger
+          - cooldown_entity_off_trigger
 
-      - alias: Always allow cooldown trigger
+      - alias: Cooldown timer done
         condition: trigger
         id: cooldown_timer_trigger
 
-      - alias: Motion (if not cooldown, not disabled, and sun elevation ok)
+      - alias: Motion (if not in cooldown, not disabled, and sun elevation ok)
         and:
           - alias: Motion trigger
             condition: trigger
@@ -324,7 +319,17 @@ action:
                 target: { entity_id: !input controlled_entity }
               - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
                 then: !input on_action
-
+          - alias: Prevent self-triggering
+            if:
+              condition: state
+              entity_id: !input controlled_entity
+              state: 'off'
+            then:
+              wait_for_trigger:
+                - platform: state
+                  entity_id: !input controlled_entity 
+                  to: "on"
+              timeout: { seconds: 3 }
           - alias: (Re)start motion timer
             service: timer.start
             data: { duration: !input off_timeout }
@@ -342,7 +347,6 @@ action:
         conditions: { condition: trigger, id: off_timer_trigger }
         sequence:
           - parallel:
-
               - alias: Turn off switch
                 service: switch.turn_off
                 target: { entity_id: !input controlled_entity }
@@ -355,3 +359,14 @@ action:
                 target: { entity_id: !input controlled_entity }
               - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
                 then: !input off_action
+          - alias: Prevent self-triggering
+            if:
+              condition: state
+              entity_id: !input controlled_entity
+              state: 'on'
+            then:
+              wait_for_trigger:
+                - platform: state
+                  entity_id: !input controlled_entity 
+                  to: "off"
+              timeout: { seconds: 3 }
