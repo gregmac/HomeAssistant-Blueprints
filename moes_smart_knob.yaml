@@ -33,6 +33,16 @@ blueprint:
         entity: 
           domain: light
 
+    step_size:
+      name: Step size
+      description: Percentage to adjust light for each rotate step
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+      default: 10
+
     command_brightness_step_down:         { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Command mode)' }
     command_brightness_step_up:           { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Command mode)' }
     command_color_temperature_step_down:  { default: [], selector: { action: {} }, name: 'Custom Action: Hold + Rotate Left (Command mode)' }
@@ -53,24 +63,35 @@ trigger:
   - platform: mqtt
     topic: !input mqtt_topic
 
+# queue subsequent runs so they register
+mode: queued
+max: 25
+
+# increase log size since rotating can generate a lot of events
+trace: { stored_traces: 30 }
+
+variables:
+  step_size: !input step_size
+
 action:
   - variables:
       action: "{{ trigger.payload_json.action }}"
-      step_size:  "{{ trigger.payload_json.action_step_size }}"
+      action_step_size: "{{ trigger.payload_json.action_step_size or 13 }}"
+      adjustment_amount: "{{ action_step_size / 13 * step_size }}"
       # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
 
   - parallel:
       - choose:
-          - conditions: "{{ action == 'brightness_step_down' }}"
+          - conditions: "{{ action == 'brightness_step_down' or action == 'rotate_left' }}"
             sequence:
               - service: light.turn_on
                 entity_id: !input light_normal
-                data: { brightness_step_pct: "{{ -1 * step_size }}" }
-          - conditions: "{{ action == 'brightness_step_up' }}"
+                data: { brightness_step_pct: "{{ -1 * adjustment_amount }}" }
+          - conditions: "{{ action == 'brightness_step_up' or action == 'rotate_right' }}"
             sequence:
               - service: light.turn_on
                 entity_id: !input light_normal
-                data: { brightness_step_pct: "{{ step_size }}" }
+                data: { brightness_step_pct: "{{ adjustment_amount }}" }
 
       - choose:
           # mode change
