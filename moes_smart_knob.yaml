@@ -1,0 +1,119 @@
+blueprint:
+  name: "Moes Smart Knob"
+  domain: automation
+  description: >
+    
+  author: gregmac
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/moes_smart_knob.yaml
+
+  input:
+    #! knob:
+    #!   name: Control knob
+    #!   description: The knob to be configured
+    #!   selector:
+    #!     device:
+    #!       manufacturer: TuYa
+    #!       model: Smart knob (ERS-10TZBVK-AA)
+    #!       multiple: false
+
+    mqtt_topic:
+      name: Knob
+      description: >-
+        
+      default: mqtt/knob_name
+      selector:
+        text:
+
+    light1:
+      name: Light to control
+      default: []
+      description: >-
+        Rotate left/right to control brightness
+      selector:
+        entity: 
+          domain: light
+
+    event_short_press:
+      name: 'Event Mode: Single Press Action'
+      default: []
+      selector:
+        action: {}
+
+    event_short_press:
+      name: 'Event Mode: Single Press Action'
+      default: []
+      selector:
+        action: {}
+
+    event_short_press:
+      name: 'Event Mode: Double Press Action'
+      default: []
+      selector:
+        action: {}
+
+    event_rotate_left:
+      name: 'Event Mode: Rotate Left'
+      default: []
+      selector:
+        action: {}
+
+    event_rotate_left:
+      name: 'Event Mode: Rotate Right'
+      default: []
+      selector:
+        action: {}
+
+trigger:
+  - platform: mqtt
+    topic: !input mqtt_topic
+
+action:
+  - variables:
+      action: "{{ trigger.payload_json.action }}"
+      step_size:  "{{ trigger.payload_json.action_step_size }}"
+      # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
+
+  - parallel:
+      - choose:
+          - conditions: "{{ action == 'brightness_step_down' }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light1
+                data: { brightness_step_pct: "{{ -1 * step_size }}" }
+          - conditions: "{{ action == 'brightness_step_up' }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light1
+                data: { brightness_step_pct: "{{ step_size }}" }
+
+      - choose:
+          - conditions: "{{ action == null }}"  # mode changed
+            sequence: []
+
+          # command mode
+          - conditions: "{{ action == 'brightness_step_down' }}"
+            sequence: []
+          - conditions: "{{ action == 'brightness_step_up' }}"
+            sequence: []
+          - conditions: "{{ action == 'color_temperature_step_down' }}"
+            sequence: []
+          - conditions: "{{ action == 'color_temperature_step_up' }}"
+            sequence: []
+          - conditions: "{{ action == 'toggle' }}" # single click
+            sequence: []
+
+          # hue_move: hold more than 3 seconds
+          # hue_stop: stop holding
+
+          # event mode
+          - conditions: "{{ action == 'rotate_right' }}"
+            sequence: []
+
+
+    #!  rotate_left
+    #!  
+    #!  single
+    #!  double
+    #!  hold
+
+    # null   "operation_mode": "command",
