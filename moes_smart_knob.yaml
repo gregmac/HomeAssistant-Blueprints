@@ -77,7 +77,7 @@ action:
   - variables:
       action: "{{ trigger.payload_json.action }}"
       action_step_size: "{{ trigger.payload_json.action_step_size or 13 }}"
-      adjustment_amount: "{{ action_step_size / 13 * step_size }}"
+      adjustment_pct: "{{ action_step_size / 13 * step_size }}"
       # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
 
   - parallel:
@@ -86,12 +86,12 @@ action:
             sequence:
               - service: light.turn_on
                 entity_id: !input light_normal
-                data: { brightness_step_pct: "{{ -1 * adjustment_amount }}" }
+                data: { brightness_step_pct: "{{ -1 * adjustment_pct }}" }
           - conditions: "{{ action == 'brightness_step_up' or action == 'rotate_right' }}"
             sequence:
               - service: light.turn_on
                 entity_id: !input light_normal
-                data: { brightness_step_pct: "{{ adjustment_amount }}" }
+                data: { brightness_step_pct: "{{ adjustment_pct }}" }
 
       - choose:
           # mode change
