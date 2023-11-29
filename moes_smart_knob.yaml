@@ -24,7 +24,7 @@ blueprint:
       selector:
         text:
 
-    light1:
+    light_normal:
       name: Light to control
       default: []
       description: >-
@@ -33,35 +33,21 @@ blueprint:
         entity: 
           domain: light
 
-    event_short_press:
-      name: 'Event Mode: Single Press Action'
-      default: []
-      selector:
-        action: {}
+    command_brightness_step_down:         { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Command mode)' }
+    command_brightness_step_up:           { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Command mode)' }
+    command_color_temperature_step_down:  { default: [], selector: { action: {} }, name: 'Custom Action: Hold + Rotate Left (Command mode)' }
+    command_color_temperature_step_up:    { default: [], selector: { action: {} }, name: 'Custom Action: Hold + Rotate Right (Command mode)' }
+    command_toggle:                       { default: [], selector: { action: {} }, name: 'Custom Action: Single press (Command mode)' }
+    command_hue_move:                     { default: [], selector: { action: {} }, name: 'Custom Action: Hold for 3 seconds (Command mode)' }
+    command_hue_stop:                     { default: [], selector: { action: {} }, name: 'Custom Action: Stop holding (Command mode)' }
 
-    event_short_press:
-      name: 'Event Mode: Single Press Action'
-      default: []
-      selector:
-        action: {}
+    event_rotate_right:                   { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Event mode)' }
+    event_rotate_left:                    { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Event mode)' }
+    event_single:                         { default: [], selector: { action: {} }, name: 'Custom Action: Single Press (Event mode)' }
+    event_double:                         { default: [], selector: { action: {} }, name: 'Custom Action: Double Press (Event mode)' }
+    event_hold:                           { default: [], selector: { action: {} }, name: 'Custom Action: Hold (Event mode)' }
 
-    event_short_press:
-      name: 'Event Mode: Double Press Action'
-      default: []
-      selector:
-        action: {}
-
-    event_rotate_left:
-      name: 'Event Mode: Rotate Left'
-      default: []
-      selector:
-        action: {}
-
-    event_rotate_left:
-      name: 'Event Mode: Rotate Right'
-      default: []
-      selector:
-        action: {}
+    mode_change:                          { default: [], selector: { action: {} }, name: 'Custom Action: Mode changed (Triple click)' }
 
 trigger:
   - platform: mqtt
@@ -78,42 +64,31 @@ action:
           - conditions: "{{ action == 'brightness_step_down' }}"
             sequence:
               - service: light.turn_on
-                entity_id: !input light1
+                entity_id: !input light_normal
                 data: { brightness_step_pct: "{{ -1 * step_size }}" }
           - conditions: "{{ action == 'brightness_step_up' }}"
             sequence:
               - service: light.turn_on
-                entity_id: !input light1
+                entity_id: !input light_normal
                 data: { brightness_step_pct: "{{ step_size }}" }
 
       - choose:
-          - conditions: "{{ action == null }}"  # mode changed
-            sequence: []
+          # mode change
+          - { conditions: "{{ action == null }}",                           sequence: !input mode_change }
 
           # command mode
-          - conditions: "{{ action == 'brightness_step_down' }}"
-            sequence: []
-          - conditions: "{{ action == 'brightness_step_up' }}"
-            sequence: []
-          - conditions: "{{ action == 'color_temperature_step_down' }}"
-            sequence: []
-          - conditions: "{{ action == 'color_temperature_step_up' }}"
-            sequence: []
-          - conditions: "{{ action == 'toggle' }}" # single click
-            sequence: []
-
-          # hue_move: hold more than 3 seconds
-          # hue_stop: stop holding
+          - { conditions: "{{ action == 'brightness_step_down' }}",         sequence: !input command_brightness_step_down }
+          - { conditions: "{{ action == 'brightness_step_up' }}",           sequence: !input command_brightness_step_up }
+          - { conditions: "{{ action == 'color_temperature_step_down' }}",  sequence: !input command_color_temperature_step_down }
+          - { conditions: "{{ action == 'color_temperature_step_up' }}",    sequence: !input command_color_temperature_step_up }
+          - { conditions: "{{ action == 'toggle' }}",                       sequence: !input command_toggle }
+          - { conditions: "{{ action == 'hue_move' }}",                     sequence: !input command_hue_move }
+          - { conditions: "{{ action == 'hue_stop' }}",                     sequence: !input command_hue_stop }
 
           # event mode
-          - conditions: "{{ action == 'rotate_right' }}"
-            sequence: []
+          - { conditions: "{{ action == 'rotate_right' }}",                 sequence: !input event_rotate_right }
+          - { conditions: "{{ action == 'rotate_left' }}",                  sequence: !input event_rotate_left }
+          - { conditions: "{{ action == 'single' }}",                       sequence: !input event_single }
+          - { conditions: "{{ action == 'double' }}",                       sequence: !input event_double }
+          - { conditions: "{{ action == 'hold' }}",                         sequence: !input event_hold }
 
-
-    #!  rotate_left
-    #!  
-    #!  single
-    #!  double
-    #!  hold
-
-    # null   "operation_mode": "command",
