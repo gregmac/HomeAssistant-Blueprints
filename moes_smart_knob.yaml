@@ -19,16 +19,16 @@ blueprint:
     mqtt_topic:
       name: Knob
       description: >-
-        
+        MQTT topic name of the knob, as connected via zigbee2mqtt
       default: mqtt/knob_name
       selector:
         text:
 
-    light_normal:
+    light:
       name: Light to control
       default: []
       description: >-
-        Rotate left/right to control brightness
+        Rotate left/right to adjust brightness. Hold and rotate to adjust color temperature.
       selector:
         entity: 
           domain: light
@@ -72,6 +72,7 @@ trace: { stored_traces: 30 }
 
 variables:
   step_size: !input step_size
+  light: !input light
 
 action:
   - variables:
@@ -80,18 +81,36 @@ action:
       adjustment_pct: "{{ action_step_size / 13 * step_size }}"
       # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
 
+      current_light_kelvin: "{{ light and state_attr(light, 'color_temp_kelvin') }}"
+
   - parallel:
       - choose:
-          - conditions: "{{ action == 'brightness_step_down' or action == 'rotate_left' }}"
+          - conditions: "{{ light and (action == 'toggle' or action == 'single') }}"
+            sequence:
+              - service: light.toggle
+                entity_id: !input light
+
+          - conditions: "{{ light and (action == 'brightness_step_down' or action == 'rotate_left') }}"
             sequence:
               - service: light.turn_on
-                entity_id: !input light_normal
+                entity_id: !input light
                 data: { brightness_step_pct: "{{ -1 * adjustment_pct }}" }
-          - conditions: "{{ action == 'brightness_step_up' or action == 'rotate_right' }}"
+          - conditions: "{{ light and (action == 'brightness_step_up' or action == 'rotate_right') }}"
             sequence:
               - service: light.turn_on
-                entity_id: !input light_normal
+                entity_id: !input light
                 data: { brightness_step_pct: "{{ adjustment_pct }}" }
+
+          - conditions: "{{ light and action == 'color_temperature_step_down' }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light
+                data: { kelvin: "{{ current_light_kelvin + (-10 * adjustment_pct) }}" }
+          - conditions: "{{ light and action == 'color_temperature_step_up' }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light
+                data: { kelvin: "{{ current_light_kelvin + (10 * adjustment_pct) }}" }
 
       - choose:
           # mode change
