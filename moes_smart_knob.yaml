@@ -28,7 +28,11 @@ blueprint:
       name: Light to control
       default: []
       description: >-
-        Rotate left/right to adjust brightness. Hold and rotate to adjust color temperature.
+        If specified, directly controls a specific light.
+        * Press knob to toggle on/off
+        * Rotate for brightness
+        * Hold to switch between color temperature and RGB mode
+        * Hold and rotate to adjust color temperature or hue
       selector:
         entity: 
           domain: light
@@ -83,9 +87,10 @@ action:
       adjustment_pct: "{{ action_step_size / 13 * step_size }}"
       # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
 
-      current_light_kelvin: "{{ light and state_attr(light, 'color_temp_kelvin') }}"
       current_light_mode: "{{ light and state_attr(light, 'color_mode') }}"
-      current_light_hue: "{{ light and state_attr(light, 'hs_color')[0] }}"
+      current_light_kelvin: "{{ light and state_attr(light, 'color_temp_kelvin') or 3000 }}"
+      current_light_hue: "{{ light and state_attr(light, 'hs_color')[0] or 200 }}"
+      current_light_sat: "{{ light and state_attr(light, 'hs_color')[1] or 100 }}"
 
   - parallel:
       - choose:
@@ -105,53 +110,43 @@ action:
                 entity_id: !input light
                 data: { brightness_step_pct: "{{ adjustment_pct }}" }
 
+          - conditions: "{{ light and action == 'hue_move' and current_light_mode == 'color_temp' }}"
+            sequence:
+              # switch to colors
+              - service: light.turn_on
+                entity_id: !input light
+                data: { hs_color: [ "{{ current_light_hue }}", "{{ current_light_sat }}" ]  }
+          - conditions: "{{ light and action == 'hue_move' }}"
+            sequence:
+              # switch to hue
+              - service: light.turn_on
+                entity_id: !input light
+                data: { kelvin: "{{ current_light_kelvin }}" }
+
+          - conditions: "{{ light and action == 'color_temperature_step_down' and current_light_mode == 'color_temp' }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light
+                data: { kelvin: "{{ current_light_kelvin + (-10 * adjustment_pct) }}" }
           - conditions: "{{ light and action == 'color_temperature_step_down' }}"
             sequence:
-              - choose:
-                  - conditions: "{{ current_light_mode == 'color_temp' and current_light_kelvin > light_min_kelvin }}"
-                    sequence:
-                      # hue down
-                      - service: light.turn_on
-                        entity_id: !input light
-                        data: { kelvin: "{{ current_light_kelvin + (-10 * adjustment_pct) }}" }
-                  - conditions: "{{ current_light_mode == 'color_temp' and current_light_kelvin <= light_min_kelvin }}"
-                    sequence:
-                      # switch to colors
-                      - service: light.turn_on
-                        entity_id: !input light
-                        data: { hs_color: [ 0, 100 ] }
-                default:
-                  # color down
-                  - service: light.turn_on
-                    entity_id: !input light
-                    data: { hs_color: [ "{{ (current_light_hue - adjustment_pct) % 360 }}", 100 ] }
+              # color down
+              - service: light.turn_on
+                entity_id: !input light
+                data: { hs_color: [ "{{ (current_light_hue - adjustment_pct) % 360 }}", "{{ current_light_sat }}" ] }
 
+          - conditions: "{{ light and action == 'color_temperature_step_up' and current_light_mode == 'color_temp' }}"
+            sequence:
+              # hue up
+              - service: light.turn_on
+                entity_id: !input light
+                data: { kelvin: "{{ current_light_kelvin + (10 * adjustment_pct) }}" }
           - conditions: "{{ light and action == 'color_temperature_step_up' }}"
             sequence:
-              - choose:
-                  - conditions: "{{ current_light_mode == 'color_temp' }}"
-                    sequence:
-                      # hue up
-                      - service: light.turn_on
-                        entity_id: !input light
-                        data: { kelvin: "{{ current_light_kelvin + (10 * adjustment_pct) }}" }
-                  - conditions: "{{ current_light_hue >= light_max_hue }}"
-                    sequence:
-                      # switch to color_temp
-                      - service: light.turn_on
-                        entity_id: !input light
-                        data: { kelvin: "{{ light_min_kelvin }}" }
-                  - conditions: "{{ current_light_hue + adjustment_pct >= light_max_hue }}" 
-                    sequence:
-                      # max hue
-                      - service: light.turn_on
-                        entity_id: !input light
-                        data: { hs_color: [ 359, 100 ]  }
-                default:
-                    # color up
-                    - service: light.turn_on
-                      entity_id: !input light
-                      data: { hs_color: [ "{{ (current_light_hue + adjustment_pct) % 360 }}", 100 ]  }
+              # color up
+              - service: light.turn_on
+                entity_id: !input light
+                data: { hs_color: [ "{{ (current_light_hue + adjustment_pct) % 360 }}", "{{ current_light_sat }}"  ]  }
 
       - choose:
           # mode change
