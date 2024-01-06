@@ -1,0 +1,115 @@
+blueprint:
+  name: "Door Left Open Notification"
+  domain: automation
+  description: >-
+    Perform an action or notification when a door is left open for a certain amount of time.
+
+
+    Features:
+    
+    * Up to 3 Delays
+
+    * Custom actions with each delay
+
+  author: gregmac
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/door_left_open.yaml
+
+  input:
+    door_entity:
+      name: Door
+      description: Entity set as trigger
+      selector:
+        entity:
+          domain: [boolean_sensor,input_boolean]
+
+    wait_initial:
+      name: Initial Wait Time
+      default: { minutes: 3 }
+      selector:
+        duration:
+
+    wait_repeat:
+      name: Wait time between subsequent events
+      default: { minutes: 5 }
+      selector:
+        duration:
+
+    custom_actions: 
+      name: "Custom Actions"
+      description: >
+        Optional. Any other action(s) or notifications to perform when the job is complete.
+
+
+        Variables available for use in messages:
+        
+        * `{{entity_name}}` - The friendly name of the door entity
+
+        * `{{time_open}}` - The 'friendly' amount of time the door has been opened for, such as "45 seconds" or "1 hour 23 minutes". 
+      default: []
+      selector:
+        action:
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input door_entity
+    to: "on"
+    for: !input wait_initial
+
+variables:
+  door_entity: !input door_entity
+
+  #notify1_type: !input notify1_type
+  #notify1_schedule: !input notify1_schedule
+  #notify2_type: !input notify2_type
+  #notify2_schedule: !input notify2_schedule
+  custom_actions: !input custom_actions
+
+action:
+  - variables:
+      entity_name: "{{ state_attr(door_entity, 'friendly_name') or 'door' }}"
+  - repeat:
+      while:
+        - condition: state
+          entity_id: !input door_entity
+          state: "on"
+      sequence:
+        - variables:
+            last_opened: "{{ as_timestamp(trigger.to_state.last_changed) }}"
+            time_open: |
+                {%- set seconds = last_opened - as_timestamp(now()) -%}
+                {%- set secondsAbs = seconds|abs -%}
+
+                {## Delta contains eg "1 day, 04:23:45".
+                    Adds 31s so eg: 1m31s rounds up to "2 minutes left" ##}
+                {%- set delta = timedelta(seconds=secondsAbs+31) -%} 
+                {%- if secondsAbs > 86400 -%}
+                    {## Take day part only, eg: "more than 1 day" ##}
+                    {%- set timestring = "more than " + delta|regex_replace(',.*','') -%}
+                {%- elif secondsAbs >= 60 -%}
+                    {## String like "1 hour 24 minutes" ##}
+                    {%- set parsed = strptime(delta|string|regex_replace('\..*',''),"%H:%M:%S") -%}
+                    {%- set hours = parsed.strftime("%H")|int -%}
+                    {%- set mins = parsed.strftime("%M")|int -%}
+                    {%- set timestring = 
+                    ((hours|string + (' hours ' if hours > 1 else ' hour ')) if hours > 0 else '') 
+                    + ((mins|string + (' minutes ' if mins > 1 else ' minute ')) if mins > 0 else '') -%}
+                {%- elif secondsAbs >= 1 -%}
+                    {%- set timestring = (secondsAbs|int|string + (' seconds ' if secondsAbs > 1 else ' second ')) -%}
+                {%- else -%}
+                    {%- set timestring = "less than a second" -%}
+                {%- endif -%}
+
+                {{timestring|trim}}
+
+        - alias: Custom actions
+          if: { condition: template, value_template: "{{ custom_actions != [] }}" }
+          then: !input custom_actions
+
+        - wait_for_trigger:
+            - platform: state
+              entity_id: !input door_entity
+              to: "off"
+          timeout: !input wait_repeat
+
