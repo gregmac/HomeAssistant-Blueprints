@@ -47,6 +47,7 @@ blueprint:
       description: |
         Percentage to adjust light for each rotate step.
         Only applies if *Light to Control* is selected.
+        A variable `adjustment_pct` will have the percentage value (always positive, regardless of rotation type)
       selector:
         number:
           min: 1
@@ -102,8 +103,8 @@ blueprint:
     command_hue_move:                     { default: [], selector: { action: {} }, name: 'Custom Action: Hold for 3 seconds (Command mode)' }
     command_hue_stop:                     { default: [], selector: { action: {} }, name: 'Custom Action: Stop holding (Command mode)' }
 
-    event_rotate_right:                   { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Event mode)' }
     event_rotate_left:                    { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Event mode)' }
+    event_rotate_right:                   { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Event mode)' }
     event_single:                         { default: [], selector: { action: {} }, name: 'Custom Action: Single Press (Event mode)' }
     event_double:                         { default: [], selector: { action: {} }, name: 'Custom Action: Double Press (Event mode)' }
     event_hold:                           { default: [], selector: { action: {} }, name: 'Custom Action: Hold (Event mode)' }
