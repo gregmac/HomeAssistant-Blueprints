@@ -58,7 +58,7 @@ blueprint:
         Exceptions to this: **Cooldown** is active, **Enable Triggers** entity is off, or the **Sun Elevation** condition is not met.
       selector:
         entity: 
-          domain: [ binary_sensor, input_boolean ]
+          domain: [ binary_sensor, input_boolean, cover ]
           multiple: true
 
     trigger_enable:
