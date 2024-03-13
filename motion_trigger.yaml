@@ -33,23 +33,32 @@ blueprint:
         will start the **Cooldown** period during which time the **Trigger(s)** will be ignored.
 
 
+        When turned on, the light will be automatically turned off after the **Cooldown Timer** (if specified) and then
+        **Off Timer** get to zero.
+
+
         Multiple entities can be picked, or none can be picked (useful when using **Custom Actions**).
       selector:
         entity: 
           domain: [switch,light,input_boolean]
           multiple: true
 
-    trigger_entity:
-      name: Trigger(s)
+    trigger_on_entity:
+      name: On Trigger(s)
       description: >-
         Entities that cause the light to turn on. This is usually motion sensors or door contacts, but can be any type of on/off trigger.
 
 
-        Anytime a trigger turns **on**, the timer will be reset to the **Off Timeout** value (**off** triggers are
-        ignored), then after the **Off Timeout** gets to zero the controlled light or switch will be automatically turned off.
+        When *any* entity here turns **on**, the **Controlled Light** is turned on.
+
+
+        When *all* entities turn **off**, the **Off Timer** starts countdown and turns off the **Controlled Light** after **Off Timeout**.
+
+
+        Exceptions to this: **Cooldown** is active, **Enable Triggers** entity is off, or the **Sun Elevation** condition is not met.
       selector:
         entity: 
-          domain: [ binary_sensor, input_boolean ]
+          domain: [ binary_sensor, input_boolean, cover ]
           multiple: true
 
     trigger_enable:
@@ -88,6 +97,8 @@ blueprint:
             - label: Night (beolow -18°)
               value: '-18'
 
+    # TODO 'off on sunrise'
+
     off_timer:
       name: Off Timer
       description: >-
@@ -106,7 +117,7 @@ blueprint:
     off_timeout:
       name: Off Timeout
       description: >
-        Time from the last motion event after which the lights are turned off.
+        Time from the last trigger turning off to when the lights are turned off.
       default: {minutes: 5}
       selector:
         duration:
@@ -178,14 +189,14 @@ blueprint:
       selector:
         number: { min: 0, max: 300, unit_of_measurement: 'seconds' }
 
-    on_action:
+    custom_on_action:
       name: Custom Turn On Action
       description: Action to run when one of the **Trigger(s)** turn on (and any other enable conditions are met).
       default: []
       selector:
         action: {}
 
-    off_action:
+    custom_off_action:
       name: Custom Turn Off Action
       description: Action to run when the **Off Timeout** expires.
       default: []
@@ -221,10 +232,17 @@ trigger:
     entity_id: !input cooldown_entity
     to: 'off'
 
-  - id: motion_trigger
+  - id: auto_on_trigger
     platform: state
-    entity_id: !input trigger_entity
+    entity_id: !input trigger_on_entity
+    from: 'off'
     to: 'on'
+
+  - id: auto_off_trigger
+    platform: state
+    entity_id: !input trigger_on_entity
+    from: 'on'
+    to: 'off'
 
   - id: off_timer_trigger
     platform: state
@@ -253,11 +271,15 @@ condition:
         condition: trigger
         id: cooldown_timer_trigger
 
-      - alias: Motion (if not in cooldown, not disabled, and sun elevation ok)
+      - alias: Triggered (if not in cooldown, not disabled, and sun elevation ok)
         and:
-          - alias: Motion trigger
-            condition: trigger
-            id: motion_trigger
+          - or:
+              - alias: Trigger turned on
+                condition: trigger
+                id: auto_on_trigger
+              - alias: Trigger turned off
+                condition: trigger
+                id: auto_off_trigger
           - alias: Enabled
             condition: template
             value_template: "{{ states(trigger_enable|string) != 'off' }}"  # on or unknown is ok
@@ -304,10 +326,13 @@ action:
             service: timer.pause
             target: { entity_id: !input off_timer }
 
-      - alias: Motion triggered
-        conditions: { condition: trigger, id: motion_trigger }
+      - alias: Auto-on triggered
+        conditions: { condition: trigger, id: auto_on_trigger }
         sequence:
           - parallel:
+              - alias: Pause motion timer
+                service: timer.pause
+                target: { entity_id: !input off_timer }
               - alias: Turn on switch
                 service: switch.turn_on
                 target: { entity_id: !input controlled_entity }
@@ -319,7 +344,7 @@ action:
                 service: input_boolean.turn_on
                 target: { entity_id: !input controlled_entity }
               - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
-                then: !input on_action
+                then: !input custom_on_action
           - alias: Prevent self-triggering
             if:
               condition: state
@@ -331,43 +356,61 @@ action:
                   entity_id: !input controlled_entity 
                   to: "on"
               timeout: { seconds: 3 }
-          - alias: (Re)start motion timer
-            service: timer.start
-            data: { duration: !input off_timeout }
-            target: { entity_id: !input off_timer }
 
-      - alias: Cooldown complete
-        conditions: { condition: trigger, id: cooldown_timer_trigger }
+      - alias: Auto-off triggered or cooldown complete
+        conditions:
+          - or:
+            - { condition: trigger, id: auto_off_trigger }
+            - { condition: trigger, id: cooldown_timer_trigger }
         sequence:
-          - alias: (Re)start motion timer
-            service: timer.start
-            data: { duration: !input off_timeout }
-            target: { entity_id: !input off_timer }
+          - variables:
+              trigger_on_entity: !input trigger_on_entity
+              currently_on: "{{ trigger_on_entity | select('is_state', 'on') | list }}"
+          - alias: Check all trigger entities are off
+            if:
+              - condition: template
+                value_template: "{{ currently_on | length == 0 }}"
+            then:
+              - alias: (Re)start motion timer
+                service: timer.start
+                data: { duration: !input off_timeout }
+                target: { entity_id: !input off_timer }
 
-      - alias: Motion timeout
+      - alias: Off timer done
         conditions: { condition: trigger, id: off_timer_trigger }
         sequence:
-          - parallel:
-              - alias: Turn off switch
-                service: switch.turn_off
-                target: { entity_id: !input controlled_entity }
-              - alias: Turn off light
-                service: light.turn_off
-                target: { entity_id: !input controlled_entity }
-                data: { transition: !input transition_off }
-              - alias: Turn off boolean
-                service: input_boolean.turn_off
-                target: { entity_id: !input controlled_entity }
-              - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
-                then: !input off_action
-          - alias: Prevent self-triggering
+          - variables:
+              trigger_on_entity: !input trigger_on_entity
+              currently_on: "{{ trigger_on_entity | select('is_state', 'on') | list }}"
+          - alias: double-check all trigger entities are off
             if:
-              condition: state
-              entity_id: !input controlled_entity
-              state: 'on'
+              - condition: template
+                value_template: "{{ currently_on | length == 0 }}"
             then:
-              wait_for_trigger:
-                - platform: state
-                  entity_id: !input controlled_entity 
-                  to: "off"
-              timeout: { seconds: 3 }
+              - parallel:
+                  - alias: Turn off switch
+                    service: switch.turn_off
+                    target: { entity_id: !input controlled_entity }
+                  - alias: Turn off light
+                    service: light.turn_off
+                    target: { entity_id: !input controlled_entity }
+                    data: { transition: !input transition_off }
+                  - alias: Turn off boolean
+                    service: input_boolean.turn_off
+                    target: { entity_id: !input controlled_entity }
+                  - if: { condition: template, value_template: "{{ true }}" }  # arbitrary parent statement is required to run multiple actions
+                    then: !input custom_off_action
+              - alias: Prevent self-triggering
+                if:
+                  condition: state
+                  entity_id: !input controlled_entity
+                  state: 'on'
+                then:
+                  wait_for_trigger:
+                    - platform: state
+                      entity_id: !input controlled_entity 
+                      to: "off"
+                  timeout: { seconds: 3 }
+            else:
+              - stop: "Off timer expired but trigger entities are still on: {{ currently_on }}"
+                error: true
