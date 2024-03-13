@@ -1,0 +1,238 @@
+blueprint:
+  name: "Moes Smart Knob"
+  domain: automation
+  description: >-
+    Support a Zigbee "Moe's Smart Knob" device connected via zigbee2mqtt.
+
+
+    Support for:
+
+    * Direct control of a light
+
+      * Press to toggle on/off
+
+      * Rotate to adjust brightness
+
+      * Hold and rotate to adjust hue
+
+      * Hold to switch between hue (color) and color temperature modes
+
+    * Custom actions for all events
+
+    * Support for both 'event' and 'command' mode (press 3 times fast to switch modes)
+
+  author: gregmac
+  source_url: https://github.com/gregmac/HomeAssistant-Blueprints/blob/main/moes_smart_knob.yaml
+
+  input:
+    mqtt_topic:
+      name: Knob
+      description: >-
+        MQTT topic name of the knob, as reported from zigbee2mqtt.
+        This is required to receive raw events from the knob.
+      default: mqtt/knob_name
+      selector:
+        text:
+
+    light:
+      name: Light to control
+      default: []
+      description: If specified, directly controls a specific light, using the settings below.
+      selector:
+        entity: 
+          domain: light
+
+    step_size:
+      name: Step size
+      description: |
+        Percentage to adjust light for each rotate step.
+        Only applies if *Light to Control* is selected.
+        A variable `adjustment_pct` will have the percentage value (always positive, regardless of rotation type)
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+      default: 10
+
+    mode_single:
+      name: Action on single press 
+      description: Only applies if *Light to Control* is selected
+      selector:
+        select:
+          options:
+            - { value: 'onoff', label: 'Toggle on/off' }
+            - { value: 'nothing', label: 'Do nothing' }
+      default: 'onoff'
+
+    mode_rotate:
+      name: Action on rotate
+      description: Only applies if *Light to Control* is selected
+      selector:
+        select:
+          options:
+            - { value: 'brightness', label: 'Brightness' }
+            - { value: 'nothing', label: 'Do nothing' }
+      default: 'brightness'
+
+    mode_hold:
+      name: Action on hold
+      description: Only applies if *Light to Control* is selected
+      selector:
+        select:
+          options:
+            - { value: 'lightmode', label: 'Switch between color temperature and color mode' }
+            - { value: 'nothing', label: 'Do nothing' }
+      default: 'lightmode'
+
+    mode_holdrotate:
+      name: Action on rotate while pressed
+      description: Only applies if *Light to Control* is selected
+      selector:
+        select:
+          options:
+            - { value: 'hue', label: 'Adjust color temperature or hue' }
+            - { value: 'nothing', label: 'Do nothing' }
+      default: 'hue'
+
+    command_brightness_step_down:         { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Command mode)' }
+    command_brightness_step_up:           { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Command mode)' }
+    command_color_temperature_step_down:  { default: [], selector: { action: {} }, name: 'Custom Action: Hold + Rotate Left (Command mode)' }
+    command_color_temperature_step_up:    { default: [], selector: { action: {} }, name: 'Custom Action: Hold + Rotate Right (Command mode)' }
+    command_toggle:                       { default: [], selector: { action: {} }, name: 'Custom Action: Single press (Command mode)' }
+    command_hue_move:                     { default: [], selector: { action: {} }, name: 'Custom Action: Hold for 3 seconds (Command mode)' }
+    command_hue_stop:                     { default: [], selector: { action: {} }, name: 'Custom Action: Stop holding (Command mode)' }
+
+    event_rotate_left:                    { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Left (Event mode)' }
+    event_rotate_right:                   { default: [], selector: { action: {} }, name: 'Custom Action: Rotate Right (Event mode)' }
+    event_single:                         { default: [], selector: { action: {} }, name: 'Custom Action: Single Press (Event mode)' }
+    event_double:                         { default: [], selector: { action: {} }, name: 'Custom Action: Double Press (Event mode)' }
+    event_hold:                           { default: [], selector: { action: {} }, name: 'Custom Action: Hold (Event mode)' }
+
+    mode_change:                          { default: [], selector: { action: {} }, name: 'Custom Action: Mode changed (Triple click)' }
+
+trigger:
+  - platform: mqtt
+    topic: !input mqtt_topic
+
+# queue subsequent runs so they register
+mode: queued
+max: 2
+
+# increase log size since rotating can generate a lot of events
+trace: { stored_traces: 30 }
+
+variables:
+  step_size: !input step_size
+  mode_single: !input mode_single
+  mode_rotate: !input mode_rotate
+  mode_hold: !input mode_hold
+  mode_holdrotate: !input mode_holdrotate
+
+  actions_onoff: "{{ ('toggle','single') if mode_single == 'onoff' }}"
+  actions_brightness_down: "{{ ('brightness_step_down','rotate_left') if mode_rotate == 'brightness' }}"
+  actions_brightness_up:   "{{ ('brightness_step_up','rotate_right')  if mode_rotate == 'brightness' }}"
+  actions_lightmode: "{{ ('color_temperature_step_down') if mode_hold == 'lightmode' }}"
+  actions_hue_down: "{{ ('color_temperature_step_down') if mode_holdrotate == 'hue' }}"
+  actions_hue_up:   "{{ ('color_temperature_step_up')   if mode_holdrotate == 'hue' }}"
+
+  light: !input light
+  light_min_kelvin: "{{ light and state_attr(light, 'min_color_temp_kelvin') }}"
+  light_max_hue: 357 # threshold just below 359 to account for fractions
+
+action:
+  - variables:
+      action: "{{ trigger.payload_json.action }}"
+      action_step_size: "{{ trigger.payload_json.action_step_size or 13 }}"
+      adjustment_pct: "{{ action_step_size / 13 * step_size }}"
+      # note: action_transition_time 0.1 to 0.3 depending on how fast knob turned
+
+      current_light_mode: "{{ light and state_attr(light, 'color_mode') }}"
+      current_light_kelvin: "{{ light and state_attr(light, 'color_temp_kelvin') or 3000 }}"
+      current_light_hue: "{{ light and state_attr(light, 'hs_color')[0] or 200 }}"
+      current_light_sat: "{{ light and state_attr(light, 'hs_color')[1] or 100 }}"
+
+  - if: { condition: template, value_template: "{{ not action }}" }
+    then:
+      - stop: 'No action found'
+
+  - parallel:
+      - choose:
+          - conditions: "{{ light and (action in actions_onoff) }}"
+            sequence:
+              - service: light.toggle
+                entity_id: !input light
+
+          - conditions: "{{ light and (action in actions_brightness_down) }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light
+                data: { brightness_step_pct: "{{ -1 * adjustment_pct }}" }
+          - conditions: "{{ light and (action in actions_brightness_up) }}"
+            sequence:
+              - service: light.turn_on
+                entity_id: !input light
+                data: { brightness_step_pct: "{{ adjustment_pct }}" }
+
+          - conditions: "{{ light and (action in actions_lightmode) }}"
+            sequence:
+              - if: { condition: template, value_template: "{{ current_light_mode == 'color_temp' }}" }
+                then:
+                  - alias: Switch to hue (color) mode
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { hs_color: [ "{{ current_light_hue }}", "{{ current_light_sat }}" ]  }
+                else:
+                  - alias: Switch to color temp mode
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { kelvin: "{{ current_light_kelvin }}" }
+
+          - conditions: "{{ light and (action in actions_hue_down) }}"
+            sequence:
+              - if: { condition: template, value_template: "{{ current_light_mode == 'color_temp' }}" }
+                then:
+                  - alias: Color temp down
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { kelvin: "{{ current_light_kelvin + (-10 * adjustment_pct) }}" }
+                else:
+                  - alias: Hue down
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { hs_color: [ "{{ (current_light_hue - adjustment_pct) % 360 }}", "{{ current_light_sat }}" ] }
+
+          - conditions: "{{ light and (action in actions_hue_up) }}"
+            sequence:
+              - if: { condition: template, value_template: "{{ current_light_mode == 'color_temp' }}" }
+                then:
+                  - alias: Color temp up
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { kelvin: "{{ current_light_kelvin + (10 * adjustment_pct) }}" }
+                else:
+                  - alias: Hue up
+                    service: light.turn_on
+                    entity_id: !input light
+                    data: { hs_color: [ "{{ (current_light_hue + adjustment_pct) % 360 }}", "{{ current_light_sat }}"  ]  }
+
+      - choose:
+          # mode change
+          - { conditions: "{{ action == null }}",                           sequence: !input mode_change }
+
+          # command mode
+          - { conditions: "{{ action == 'brightness_step_down' }}",         sequence: !input command_brightness_step_down }
+          - { conditions: "{{ action == 'brightness_step_up' }}",           sequence: !input command_brightness_step_up }
+          - { conditions: "{{ action == 'color_temperature_step_down' }}",  sequence: !input command_color_temperature_step_down }
+          - { conditions: "{{ action == 'color_temperature_step_up' }}",    sequence: !input command_color_temperature_step_up }
+          - { conditions: "{{ action == 'toggle' }}",                       sequence: !input command_toggle }
+          - { conditions: "{{ action == 'hue_move' }}",                     sequence: !input command_hue_move }
+          - { conditions: "{{ action == 'hue_stop' }}",                     sequence: !input command_hue_stop }
+
+          # event mode
+          - { conditions: "{{ action == 'rotate_right' }}",                 sequence: !input event_rotate_right }
+          - { conditions: "{{ action == 'rotate_left' }}",                  sequence: !input event_rotate_left }
+          - { conditions: "{{ action == 'single' }}",                       sequence: !input event_single }
+          - { conditions: "{{ action == 'double' }}",                       sequence: !input event_double }
+          - { conditions: "{{ action == 'hold' }}",                         sequence: !input event_hold }
+
